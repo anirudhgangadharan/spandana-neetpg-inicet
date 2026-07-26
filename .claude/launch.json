@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev", "--port", "3210"],
       "port": 3210
+    },
+    {
+      "name": "medmcqa-prod",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["start", "--port", "3400"],
+      "port": 3400
     }
   ]
 }
