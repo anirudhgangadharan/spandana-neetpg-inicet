@@ -1,0 +1,103 @@
+﻿# syntax=docker/dockerfile:1
+
+# ============================================================================
+# MedMCQA Practice â€” image for Git-based hosts (Render, Koyeb, Railwayâ€¦)
+#
+# Same as `Dockerfile`, with one difference: the 243 MB corpus is DOWNLOADED at
+# build time instead of copied from the build context.
+#
+# Why this variant exists: every free host that accepts Docker without a payment
+# method deploys from a Git repository, and a 243 MB file cannot live in one â€”
+# GitHub rejects anything over 100 MB, and the corpus is 103 MB even zipped. So
+# the corpus is published separately to a Hugging Face dataset repo (free,
+# no card, designed for large files) and pulled in here.
+#
+# Required build argument:
+#   CORPUS_BASE_URL   e.g. https://huggingface.co/datasets/USER/REPO/resolve/main
+#
+# The integrity guarantee is unchanged. The downloaded corpus still has to pass
+# the Â§3.2 answer-key checksum at startup, so a truncated or substituted
+# download makes the app refuse to serve rather than serve wrong answers. That
+# is the whole point of the checksum: it does not care whether the file arrived
+# by COPY or by curl.
+# ============================================================================
+
+# ---- corpus: fetch the build artefacts -------------------------------------
+FROM debian:bookworm-slim AS corpus
+ARG CORPUS_BASE_URL
+WORKDIR /corpus
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+  if [ -z "${CORPUS_BASE_URL:-}" ]; then \
+    echo "ERROR: CORPUS_BASE_URL build argument is required." >&2; \
+    echo "  Set it to the base URL of your published corpus, e.g." >&2; \
+    echo "  https://huggingface.co/datasets/USER/REPO/resolve/main" >&2; \
+    exit 1; \
+  fi; \
+  for f in corpus.sqlite manifest.json facets.json; do \
+    echo "downloading $f"; \
+    curl --fail --location --show-error --silent --retry 3 --retry-delay 2 \
+         -o "$f" "${CORPUS_BASE_URL}/$f"; \
+  done; \
+  # A truncated download is the likeliest failure here, and it would otherwise
+  # surface as a confusing SQLite error at runtime. Check the file is a real
+  # SQLite database and a plausible size before it goes any further.
+  head -c 15 corpus.sqlite | grep -q 'SQLite format 3' \
+    || { echo "ERROR: corpus.sqlite is not a SQLite database (download failed or returned an HTML error page)" >&2; exit 1; }; \
+  size=$(stat -c%s corpus.sqlite); \
+  echo "corpus.sqlite: $size bytes"; \
+  [ "$size" -gt 100000000 ] \
+    || { echo "ERROR: corpus.sqlite is only $size bytes; expected >100 MB. Truncated download." >&2; exit 1; }
+
+
+# ---- deps -------------------------------------------------------------------
+FROM node:22-bookworm-slim AS deps
+WORKDIR /app
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+
+# ---- builder ----------------------------------------------------------------
+FROM node:22-bookworm-slim AS builder
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV BUILD_STANDALONE=1
+RUN pnpm build
+
+
+# ---- runner -----------------------------------------------------------------
+FROM node:22-bookworm-slim AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+COPY --from=builder --chown=node:node /app/.next/standalone ./
+COPY --from=builder --chown=node:node /app/.next/static ./.next/static
+
+# Read-only, root-owned: the app user cannot write to the answer key (I3).
+COPY --from=corpus --chown=root:root /corpus/corpus.sqlite ./data/build/corpus.sqlite
+COPY --from=corpus --chown=root:root /corpus/manifest.json ./data/build/manifest.json
+COPY --from=corpus --chown=root:root /corpus/facets.json ./data/build/facets.json
+RUN chmod 444 ./data/build/corpus.sqlite ./data/build/manifest.json ./data/build/facets.json
+
+USER node
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=25s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+CMD ["node", "server.js"]

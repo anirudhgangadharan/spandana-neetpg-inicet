@@ -1,0 +1,31 @@
+# Raw dataset — never committed (spec §2.1)
+/data/raw/
+# Build artefacts from the ETL — regenerable via `pnpm data:build`
+/data/build/
+# Phase 0 forensics output (regenerable via `pnpm data:forensics`)
+/reports/*.json
+
+node_modules/
+.next/
+out/
+build/
+dist/
+coverage/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+.env
+.env.local
+.env*.local
+
+playwright-report/
+test-results/
+blob-report/
+.playwright/
+
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+pnpm-debug.log*

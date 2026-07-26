@@ -1,0 +1,25 @@
+# Keep the build context small. Note what is NOT excluded: data/build, which
+# holds corpus.sqlite and is deliberately baked into the image.
+
+node_modules
+.next
+.git
+.github
+coverage
+reports
+playwright-report
+test-results
+.playwright
+tests
+
+# The 141 MB raw dataset is never needed at runtime — the ETL has already run.
+data/raw
+
+*.log
+.DS_Store
+Thumbs.db
+.env
+.env.local
+.env*.local
+*.tsbuildinfo
+.claude

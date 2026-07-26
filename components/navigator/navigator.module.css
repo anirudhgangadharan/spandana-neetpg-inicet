@@ -1,0 +1,110 @@
+/* Question navigator grid (§8 P0), virtualised. */
+
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.scroller {
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: var(--space-1);
+}
+
+.rows {
+  position: relative;
+  width: 100%;
+}
+
+.row {
+  position: absolute;
+  inset-inline: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  /* 44px minimum touch target (§10). */
+  min-width: var(--tap-min);
+  height: var(--tap-min);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--hairline);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--duration-micro) var(--ease-standard),
+    color var(--duration-micro) var(--ease-standard);
+}
+
+.cell:hover {
+  background: var(--surface-hover);
+}
+
+.cellCorrect {
+  background: var(--correct-soft);
+  border-color: var(--correct-border);
+  color: var(--correct);
+  font-weight: var(--weight-medium);
+}
+
+.cellIncorrect {
+  background: var(--incorrect-soft);
+  border-color: var(--incorrect-border);
+  color: var(--incorrect);
+  font-weight: var(--weight-medium);
+}
+
+.cellSkipped {
+  background: var(--surface-sunken);
+  color: var(--text-tertiary);
+  text-decoration: line-through;
+}
+
+.cellCurrent {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-ring);
+  color: var(--accent);
+  font-weight: var(--weight-semibold);
+}
+
+/**
+ * Bookmarked is a RING, not a fill, so it composes with the verdict colour
+ * rather than replacing it (§8 P0). A bookmarked-and-correct cell reads as both.
+ */
+.cellBookmarked::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: calc(var(--radius-sm) + 3px);
+  border: 2px solid var(--bookmark-ring);
+  pointer-events: none;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--text-secondary);
+}
+
+.legendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid var(--hairline);
+}

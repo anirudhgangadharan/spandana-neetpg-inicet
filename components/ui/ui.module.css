@@ -1,0 +1,201 @@
+/* Primitives: Badge, Button, Chip, ProgressBar. */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 3px var(--space-2);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--hairline);
+  background: var(--surface-sunken);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.badgeAccent {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+  font-weight: var(--weight-medium);
+}
+
+/**
+ * The corruption / conflict warning chip.
+ *
+ * Weight is calibrated for FREQUENCY, not rarity (Appendix A.10 point 3):
+ * thousands of items carry a corruption flag, so a loud chip would leave the UI
+ * permanently alarmed. This is quiet by design and gains prominence only on
+ * hover/focus, where the explanation appears.
+ */
+.badgeWarning {
+  background: var(--warning-soft);
+  border-color: transparent;
+  color: var(--warning);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hairline);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font-size: var(--text-callout);
+  font-weight: var(--weight-medium);
+  transition:
+    background-color var(--duration-micro) var(--ease-standard),
+    border-color var(--duration-micro) var(--ease-standard),
+    opacity var(--duration-micro) var(--ease-standard);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.buttonPrimary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-contrast);
+  font-weight: var(--weight-semibold);
+}
+
+.buttonPrimary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.buttonGhost {
+  background: transparent;
+}
+
+.buttonGhost:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+.iconButton {
+  display: inline-grid;
+  place-items: center;
+  width: var(--tap-min);
+  height: var(--tap-min);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--text-secondary);
+  transition:
+    background-color var(--duration-micro) var(--ease-standard),
+    color var(--duration-micro) var(--ease-standard);
+}
+
+.iconButton:hover {
+  background: var(--surface-hover);
+}
+
+.iconButtonActive {
+  color: var(--bookmark);
+  border-color: var(--bookmark-ring);
+  background: var(--warning-soft);
+}
+
+/* ---- progress ----------------------------------------------------------- */
+.progressTrack {
+  position: relative;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+
+.progressFill {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  /* Animate width with the standard easing; never animate a blur radius (§13.10). */
+  transition: width var(--duration-standard) var(--ease-standard);
+}
+
+.progressStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--text-secondary);
+}
+
+.statCorrect {
+  color: var(--correct);
+  font-weight: var(--weight-medium);
+}
+
+.statIncorrect {
+  color: var(--incorrect);
+  font-weight: var(--weight-medium);
+}
+
+/* ---- disclaimer (I6) ---------------------------------------------------- */
+.disclaimerOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: rgba(0, 0, 0, 0.35);
+  -webkit-backdrop-filter: var(--blur-modal);
+  backdrop-filter: var(--blur-modal);
+}
+
+.disclaimerDialog {
+  max-width: 520px;
+  width: 100%;
+  max-height: 90dvh;
+  overflow-y: auto;
+  padding: var(--space-6);
+  border-radius: var(--radius-xl);
+  background: var(--surface-solid);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: var(--shadow-elevated);
+}
+
+.disclaimerTitle {
+  font-size: var(--text-title);
+  line-height: var(--leading-title);
+  margin-bottom: var(--space-4);
+}
+
+.disclaimerBody {
+  font-size: var(--text-callout);
+  line-height: 22px;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.disclaimerBody strong {
+  color: var(--text-primary);
+}
+
+/* The persistent footer note, shown after acknowledgement. */
+.disclaimerBar {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: var(--space-4);
+  max-width: var(--content-max);
+  margin: 0 auto;
+}

@@ -1,0 +1,48 @@
+# Fly.io deployment. Rename `app` to something unique before the first deploy —
+# it becomes the hostname: https://<app>.fly.dev
+#
+# The corpus is baked into the image (see Dockerfile), so there is no volume and
+# no [mounts] section. Deploying a new corpus means building a new image, which
+# is the intent: the image and the answer key it serves are one artefact.
+
+app = 'Spandana'
+primary_region = 'bom'          # Mumbai — closest to the likely audience
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  NODE_ENV = 'production'
+  PORT = '3000'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # Scale to zero when idle to keep the cost near nothing; the first request
+  # after idling pays a few seconds of cold start.
+  auto_stop_machines = 'suspend'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+  [http_service.concurrency]
+    type = 'requests'
+    soft_limit = 60
+    hard_limit = 120
+
+# The check hits /api/health, which recomputes nothing but reports the result of
+# the startup answer-key verification (§3.2). An instance whose corpus does not
+# verify is never routed traffic.
+[[http_service.checks]]
+  interval = '30s'
+  timeout = '5s'
+  grace_period = '20s'
+  method = 'GET'
+  path = '/api/health'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  # 512 MB. SQLite reads pages through the OS cache rather than loading the whole
+  # 255 MB file, but 256 MB leaves no headroom for Node plus the page cache.
+  memory = '512mb'
+  cpus = 1

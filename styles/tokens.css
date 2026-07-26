@@ -1,0 +1,265 @@
+/**
+ * Design tokens (§9.2).
+ *
+ * The governing principle from §9.1 is restraint: hierarchy through space and
+ * weight, one accent colour, semantic colour reserved for verdicts, and glass
+ * used as a surface treatment for chrome rather than for body-text containers.
+ *
+ * Contrast note (§9.4): translucent surfaces make contrast content-dependent, so
+ * the gradient field behind the glass is deliberately kept within a narrow
+ * luminance range. Every text token is verified against the WORST-CASE stop of
+ * that field, not its average — see `app/dev/contrast/page.tsx`.
+ */
+
+:root {
+  /* ---- Radii. Squircles where the browser supports them. ---------------- */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 22px;
+  --radius-xl: 28px;
+  --radius-full: 999px;
+
+  /* ---- Spacing: 4pt base scale ------------------------------------------ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ---- Type ------------------------------------------------------------- */
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Inter',
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace;
+
+  --text-display: 34px;
+  --leading-display: 40px;
+  --text-title: 22px;
+  --leading-title: 28px;
+  /* The question stem never goes below this (§9.2). */
+  --text-body: 17px;
+  --leading-body: 24px;
+  --text-callout: 15px;
+  --leading-callout: 20px;
+  --text-caption: 13px;
+  --leading-caption: 18px;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* ---- Motion ----------------------------------------------------------- */
+  --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
+  --duration-micro: 120ms;
+  --duration-standard: 260ms;
+  --duration-transition: 380ms;
+
+  /* ---- Blur. Two blurred layers maximum (§11). -------------------------- */
+  --blur-chrome: blur(24px) saturate(180%);
+  --blur-modal: blur(40px) saturate(180%);
+
+  /* ---- Layout ----------------------------------------------------------- */
+  --sidebar-width: 280px;
+  --content-max: 760px;
+  --tap-min: 44px;
+  --option-min-height: 56px;
+}
+
+/* =========================================================================
+   Light theme — the default
+   ========================================================================= */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  /* Gradient field. Kept within a narrow luminance range so the worst-case
+     stop behind a translucent surface is still light. */
+  --field-base: #f2f2f5;
+  --field-tint-1: rgba(120, 130, 255, 0.16);
+  --field-tint-2: rgba(255, 140, 190, 0.12);
+  --field-tint-3: rgba(110, 220, 210, 0.12);
+  /* Darkest point the field can reach; contrast is checked against this. */
+  --field-worst: #e2e0ea;
+
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-solid: #ffffff;
+  /* The question card is a near-opaque elevated surface (§9.1): the layers
+     BEHIND it carry the translucency, not the body-text container itself. */
+  --surface-card: rgba(255, 255, 255, 0.94);
+  --surface-sunken: rgba(120, 120, 128, 0.08);
+  --surface-hover: rgba(120, 120, 128, 0.06);
+
+  --hairline: rgba(0, 0, 0, 0.1);
+  --hairline-strong: rgba(0, 0, 0, 0.16);
+
+  --text-primary: #1c1c1e;
+  --text-secondary: #52525b;
+  --text-tertiary: #6b6b76;
+
+  --accent: #0060df;
+  --accent-hover: #0050bd;
+  --accent-soft: rgba(0, 96, 223, 0.1);
+  --accent-ring: rgba(0, 96, 223, 0.32);
+  --accent-contrast: #ffffff;
+
+  --correct: #0f7b3d;
+  --correct-soft: rgba(15, 123, 61, 0.12);
+  --correct-border: rgba(15, 123, 61, 0.5);
+
+  --incorrect: #c2183c;
+  --incorrect-soft: rgba(194, 24, 60, 0.1);
+  --incorrect-border: rgba(194, 24, 60, 0.45);
+
+  --warning: #8a5a00;
+  --warning-soft: rgba(180, 120, 0, 0.14);
+
+  --bookmark: #a35a00;
+  --bookmark-ring: rgba(200, 130, 0, 0.85);
+
+  --shadow-elevated: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-chrome: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+/* =========================================================================
+   Dark theme
+   ========================================================================= */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --field-base: #08080b;
+    --field-tint-1: rgba(90, 110, 255, 0.16);
+    --field-tint-2: rgba(255, 90, 160, 0.1);
+    --field-tint-3: rgba(60, 200, 190, 0.1);
+    /* Lightest point the field can reach in dark mode. */
+    --field-worst: #1e1d2b;
+
+    --surface: rgba(28, 28, 30, 0.72);
+    --surface-solid: #1c1c1e;
+    --surface-card: rgba(30, 30, 33, 0.94);
+    --surface-sunken: rgba(255, 255, 255, 0.06);
+    --surface-hover: rgba(255, 255, 255, 0.08);
+
+    --hairline: rgba(255, 255, 255, 0.1);
+    --hairline-strong: rgba(255, 255, 255, 0.18);
+
+    --text-primary: #f2f2f7;
+    --text-secondary: #b4b4bd;
+    --text-tertiary: #94949e;
+
+    --accent: #6fa8ff;
+    --accent-hover: #8bb9ff;
+    --accent-soft: rgba(111, 168, 255, 0.16);
+    --accent-ring: rgba(111, 168, 255, 0.45);
+    --accent-contrast: #0a1020;
+
+    --correct: #4ed07f;
+    --correct-soft: rgba(78, 208, 127, 0.16);
+    --correct-border: rgba(78, 208, 127, 0.5);
+
+    --incorrect: #ff7a8f;
+    --incorrect-soft: rgba(255, 122, 143, 0.14);
+    --incorrect-border: rgba(255, 122, 143, 0.45);
+
+    --warning: #f0c257;
+    --warning-soft: rgba(240, 194, 87, 0.16);
+
+    --bookmark: #f5b942;
+    --bookmark-ring: rgba(245, 185, 66, 0.85);
+
+    --shadow-elevated: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.45);
+    --shadow-chrome: 0 1px 2px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* The in-app toggle must win over the OS preference in BOTH directions. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --field-base: #08080b;
+  --field-tint-1: rgba(90, 110, 255, 0.16);
+  --field-tint-2: rgba(255, 90, 160, 0.1);
+  --field-tint-3: rgba(60, 200, 190, 0.1);
+  --field-worst: #1e1d2b;
+
+  --surface: rgba(28, 28, 30, 0.72);
+  --surface-solid: #1c1c1e;
+  --surface-card: rgba(30, 30, 33, 0.94);
+  --surface-sunken: rgba(255, 255, 255, 0.06);
+  --surface-hover: rgba(255, 255, 255, 0.08);
+
+  --hairline: rgba(255, 255, 255, 0.1);
+  --hairline-strong: rgba(255, 255, 255, 0.18);
+
+  --text-primary: #f2f2f7;
+  --text-secondary: #b4b4bd;
+  --text-tertiary: #94949e;
+
+  --accent: #6fa8ff;
+  --accent-hover: #8bb9ff;
+  --accent-soft: rgba(111, 168, 255, 0.16);
+  --accent-ring: rgba(111, 168, 255, 0.45);
+  --accent-contrast: #0a1020;
+
+  --correct: #4ed07f;
+  --correct-soft: rgba(78, 208, 127, 0.16);
+  --correct-border: rgba(78, 208, 127, 0.5);
+
+  --incorrect: #ff7a8f;
+  --incorrect-soft: rgba(255, 122, 143, 0.14);
+  --incorrect-border: rgba(255, 122, 143, 0.45);
+
+  --warning: #f0c257;
+  --warning-soft: rgba(240, 194, 87, 0.16);
+
+  --bookmark: #f5b942;
+  --bookmark-ring: rgba(245, 185, 66, 0.85);
+
+  --shadow-elevated: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-chrome: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* =========================================================================
+   prefers-contrast: more — glass becomes opaque, hairlines strengthen (§10)
+   ========================================================================= */
+@media (prefers-contrast: more) {
+  :root {
+    --surface: var(--surface-solid);
+    --surface-card: var(--surface-solid);
+    --blur-chrome: none;
+    --blur-modal: none;
+    --hairline: var(--hairline-strong);
+    --text-secondary: var(--text-primary);
+    --text-tertiary: var(--text-primary);
+  }
+}
+
+/* =========================================================================
+   prefers-reduced-motion — a hard requirement, not a nicety (§10).
+   Transforms and springs become opacity-only or instant.
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-micro: 1ms;
+    --duration-standard: 1ms;
+    --duration-transition: 1ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Nothing may move. Opacity-only cross-fades remain. */
+  .motion-slide,
+  .motion-scale {
+    transform: none !important;
+  }
+}

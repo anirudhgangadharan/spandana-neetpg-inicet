@@ -1,0 +1,179 @@
+/* Session setup and filters. */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  padding: var(--space-5, 20px);
+  border-radius: var(--radius-lg);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.groupTitle {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+/**
+ * H5 / Appendix A.10 point 2: topic is a SECONDARY filter over an
+ * "Uncategorised" majority — over half the corpus has no topic. It is nested
+ * under a subject and disabled until one is chosen, rather than presented as a
+ * peer of subject.
+ */
+.subordinate {
+  padding-inline-start: var(--space-3);
+  border-inline-start: 2px solid var(--hairline);
+}
+
+.checkList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 260px
+;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-callout);
+  line-height: var(--leading-callout);
+  cursor: pointer;
+  transition: background-color var(--duration-micro) var(--ease-standard);
+}
+
+.checkRow:hover {
+  background: var(--surface-hover);
+}
+
+.checkRow input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.checkLabel {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.count {
+  flex: 0 0 auto;
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--text-callout);
+  color: var(--text-secondary);
+}
+
+.input,
+.select {
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hairline);
+  background: var(--surface-solid);
+  color: var(--text-primary);
+  font-size: var(--text-callout);
+  width: 100%;
+}
+
+.searchWrapper {
+  position: relative;
+}
+
+.searchStatus {
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+  min-height: var(--leading-caption);
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.resultItem {
+  text-align: left;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hairline);
+  background: var(--surface-sunken);
+  font-size: var(--text-callout);
+  line-height: var(--leading-callout);
+  transition: background-color var(--duration-micro) var(--ease-standard);
+}
+
+.resultItem:hover {
+  background: var(--surface-hover);
+}
+
+.resultMeta {
+  display: block;
+  margin-top: var(--space-1);
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+
+.modeToggle {
+  display: flex;
+  gap: var(--space-1);
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  border: 1px solid var(--hairline);
+}
+
+.modeOption {
+  flex: 1 1 0;
+  min-height: 38px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-callout);
+  color: var(--text-secondary);
+  transition:
+    background-color var(--duration-micro) var(--ease-standard),
+    color var(--duration-micro) var(--ease-standard);
+}
+
+.modeOptionActive {
+  background: var(--surface-solid);
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+  box-shadow: var(--shadow-chrome);
+}
+
+.hint {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  color: var(--text-tertiary);
+}

@@ -1,0 +1,12 @@
+# The built corpus is 243 MB and must go through Git LFS. Hugging Face rejects
+# non-LFS files over 10 MB, so this file has to exist and be committed BEFORE
+# the corpus is added, or the push fails.
+*.sqlite filter=lfs diff=lfs merge=lfs -text
+
+# Normalise line endings so a Windows checkout does not produce a different
+# Docker build context to a Linux one.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.sqlite binary
