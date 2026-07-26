@@ -429,6 +429,38 @@ visible.
 
 ---
 
+## D-020 — CSP `script-src 'self'` produced a blank production page · DEVIATION (bug fixed)
+
+The first public deployment served a completely blank page while every
+server-side signal reported healthy: `/api/health` returned `ready: true` with a
+verified checksum over 186,791 rows, and the HTML response was 166 KB and
+contained the disclaimer text.
+
+Cause: `script-src 'self'`. React 19 streams server-rendered content to the
+browser inside inline `<script>self.__next_f.push(...)</script>` blocks. Blocking
+inline scripts does not degrade the page gracefully — it produces an empty one,
+because the shell paints and the content never arrives.
+
+The failure mode is worth recording because of how it hid: the HTML was correct,
+the server was correct, and a `curl`-based check *passed*. Matching on response
+text confirmed the string was in the payload but not that a browser would ever
+execute the script that revealed it. Only loading the page in a real browser and
+counting rendered elements caught it. Server-side assertions cannot verify client
+rendering.
+
+`script-src` now allows `'unsafe-inline'`. The cost is low here: all dataset text
+is reduced to plain text during the ETL and rendered through React
+interpolation, `dangerouslySetInnerHTML` is banned and CI-enforced (§13.6), and
+the app renders no user-supplied or remote markup — so there is no injection
+vector for an inline script to exploit. The clause carrying real weight,
+`connect-src 'self'`, is untouched and remains a browser-enforced second line
+behind invariant I2.
+
+Proper fix, deliberately not attempted as a hotfix: per-request nonces issued
+from middleware, which would allow `'unsafe-inline'` to be dropped.
+
+---
+
 ## D-010 — Repository lives inside a OneDrive-synced, non-ASCII path · OPEN
 
 Working directory is `C:\Users\ganga\OneDrive\문서\NEET MCQ`. Two environmental
