@@ -24,7 +24,12 @@
 
 # ---- corpus: fetch the build artefacts -------------------------------------
 FROM debian:bookworm-slim AS corpus
-ARG CORPUS_BASE_URL
+
+# Defaults to the published corpus so a host needs no build-argument
+# configuration at all (platforms differ in whether they forward env vars to
+# Docker builds, and a missing arg would only surface as a failed build).
+# Override with --build-arg CORPUS_BASE_URL=... to deploy a different corpus.
+ARG CORPUS_BASE_URL=https://huggingface.co/datasets/medtechdev/spandana-neetpg-inicet/resolve/main
 WORKDIR /corpus
 
 RUN apt-get update \
