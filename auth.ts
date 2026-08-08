@@ -1,10 +1,14 @@
 /**
- * Auth.js configuration (§ accounts plan). Google + email/password, JWT
- * session strategy, NO database adapter — the standard Accounts/Sessions/
- * VerificationToken tables buy us nothing here (Credentials providers
- * require the JWT strategy anyway, and Google's identity is already
- * verified by the OAuth handshake itself). Instead, the `jwt` callback
- * upserts directly into our own minimal `users` table.
+ * Full Auth.js configuration (§ accounts plan) — Google + email/password,
+ * JWT session strategy, NO database adapter. Extends auth.config.ts (the
+ * edge-safe subset middleware.ts uses) with the Credentials provider and
+ * the DB-backed jwt callback; see that file for why the split exists.
+ *
+ * No adapter: the standard Accounts/Sessions/VerificationToken tables buy
+ * us nothing here — Credentials providers require the JWT strategy anyway,
+ * and Google's identity is already verified by the OAuth handshake itself.
+ * Instead, the `jwt` callback upserts directly into our own minimal `users`
+ * table.
  *
  * The hard login gate itself lives in middleware.ts, not here — that file
  * also carries the pre-existing per-IP rate limiter (D-018), and Next.js
@@ -13,17 +17,14 @@
  */
 
 import NextAuth from 'next-auth';
-import Google from 'next-auth/providers/google';
 import Credentials from 'next-auth/providers/credentials';
+import { authConfig } from './auth.config';
 import { upsertGoogleUser, verifyCredentials } from '@/lib/db/userQueries';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: 'jwt' },
-  pages: {
-    signIn: '/login',
-  },
+  ...authConfig,
   providers: [
-    Google,
+    ...authConfig.providers,
     Credentials({
       credentials: {
         email: { label: 'Email', type: 'email' },

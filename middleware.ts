@@ -1,5 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { auth } from '@/auth';
+import NextAuth from 'next-auth';
+import { authConfig } from '@/auth.config';
+
+// Built from the edge-safe config, not the full one in auth.ts — see
+// auth.config.ts for why. JWT verification only needs AUTH_SECRET, which
+// both instances read from the environment the same way, so this stays in
+// sync with the full instance without sharing its (Node-only) provider code.
+const { auth } = NextAuth(authConfig);
 
 /**
  * Abuse protection for a publicly-linkable deployment.
