@@ -49,7 +49,7 @@ export function MaintenanceState({ reason, problems }: MaintenanceStateProps): R
           ) : (
             <>
               The integrity check on the answer key did not pass, so this application will not serve any
-              questions. This is deliberate — an answer that cannot be verified against the build checksum must
+              questions. This is deliberate: an answer that cannot be verified against the build checksum must
               not be shown to anyone revising for an exam.
             </>
           )}

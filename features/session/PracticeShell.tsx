@@ -179,7 +179,7 @@ export function PracticeShell({ facets, copIndexBase, appVersion }: PracticeShel
                 session.
               </p>
               <p className={styles.emptyHint}>
-                Every answer comes from the dataset itself — nothing here is generated. Questions with known
+                Every answer comes from the dataset itself. Nothing here is generated. Questions with known
                 defects are labelled rather than hidden.
               </p>
             </section>
@@ -206,7 +206,7 @@ export function PracticeShell({ facets, copIndexBase, appVersion }: PracticeShel
                   <span className={`tabular ${uiStyles.statIncorrect}`}>{progress.incorrect} incorrect</span>
                   <span className="tabular">{progress.skipped} skipped</span>
                   <span className="tabular">
-                    {progress.accuracy === null ? '— accuracy' : `${Math.round(progress.accuracy * 100)}% accuracy`}
+                    {progress.accuracy === null ? 'no accuracy yet' : `${Math.round(progress.accuracy * 100)}% accuracy`}
                   </span>
                 </div>
               </div>

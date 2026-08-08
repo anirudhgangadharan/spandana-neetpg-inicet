@@ -88,7 +88,7 @@ export function DisclaimerGate({ acknowledged, onAcknowledge }: DisclaimerProps)
         <div id="disclaimer-body" className={uiStyles.disclaimerBody}>
           <p>
             <strong>This is exam-preparation material, not clinical guidance.</strong> Every question and
-            answer here comes from a public research dataset &mdash; MedMCQA (AIIMS / NEET-PG style questions)
+            answer here comes from a public research dataset: MedMCQA (AIIMS / NEET-PG style questions)
             or USMLE (MedQA-USMLE, US medical licensing exam questions), labelled per card. It must not be used
             to make decisions about patient care.
           </p>
@@ -102,24 +102,24 @@ export function DisclaimerGate({ acknowledged, onAcknowledge }: DisclaimerProps)
               &ldquo;Disputed answer&rdquo;.
             </li>
             <li>
-              Thousands of questions have the letters &ldquo;rt&rdquo; missing from words &mdash;
+              Thousands of questions have the letters &ldquo;rt&rdquo; missing from words:
               &ldquo;artery&rdquo; printed as &ldquo;aery&rdquo;. Those are labelled &ldquo;Possible text
               error&rdquo;. The text is deliberately <em>not</em> auto-corrected.
             </li>
             <li>About one question in eight has no explanation at all.</li>
           </ul>
           <p>
-            The USMLE portion has no explanation field at all &mdash; every USMLE card shows the same honest
+            The USMLE portion has no explanation field at all. Every USMLE card shows the same honest
             empty state for that reason, not because anything is missing or hidden.
           </p>
           <p>
             Nothing on any card is generated, inferred, or rewritten. Where the dataset is silent, this app is
-            silent too. When an answer looks wrong to you, it may well be &mdash; use
+            silent too. When an answer looks wrong to you, it may well be. Use
             &ldquo;Report this question&rdquo; to copy its exact source record.
           </p>
         </div>
         <Button ref={acknowledgeRef} variant="primary" onClick={handleAcknowledge} style={{ width: '100%' }}>
-          I understand — start practising
+          I understand, start practising
         </Button>
       </div>
     </div>
@@ -139,7 +139,7 @@ export function DisclaimerFooter(): React.JSX.Element {
         dataset that contains known errata. Never use it for patient care decisions.
       </p>
       <p style={{ marginTop: 'var(--space-2)' }}>
-        MedMCQA questions — Pal, Umapathi &amp; Sankarasubbu,{' '}
+        MedMCQA questions: Pal, Umapathi &amp; Sankarasubbu,{' '}
         <em>MedMCQA: A Large-scale Multi-Subject Multi-Choice Dataset for Medical domain Question Answering</em>,
         PMLR v174, 2022.{' '}
         <a href="https://proceedings.mlr.press/v174/pal22a.html" target="_blank" rel="noreferrer noopener">
@@ -159,7 +159,7 @@ export function DisclaimerFooter(): React.JSX.Element {
         </a>
       </p>
       <p style={{ marginTop: 'var(--space-2)' }}>
-        USMLE questions — Jin, Pan, Oufattole, Weng, Fang &amp; Szolovits,{' '}
+        USMLE questions: Jin, Pan, Oufattole, Weng, Fang &amp; Szolovits,{' '}
         <em>What Disease does this Patient Have? A Large-scale Open Domain Question Answering Dataset from
         Medical Exams</em>, arXiv:2009.13081, 2020 (&ldquo;MedQA-USMLE&rdquo;, US English subset).{' '}
         <a href="https://arxiv.org/abs/2009.13081" target="_blank" rel="noreferrer noopener">
@@ -175,6 +175,12 @@ export function DisclaimerFooter(): React.JSX.Element {
       <p style={{ marginTop: 'var(--space-2)' }}>
         Answers come from the datasets alone. Nothing is generated, inferred, or auto-corrected; questions with
         known defects are labelled rather than hidden.
+      </p>
+      <p style={{ marginTop: 'var(--space-3)', color: 'var(--text-tertiary)' }}>
+        Built by Anirudh Gangadharan{' · '}
+        <a href="https://github.com/anirudhgangadharan" target="_blank" rel="noreferrer noopener">
+          GitHub
+        </a>
       </p>
     </footer>
   );

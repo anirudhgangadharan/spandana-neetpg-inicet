@@ -178,11 +178,11 @@ export function QuestionCard({
         >
           <div>
             <div className={styles.verdictTitle}>
-              {verdict === 'correct' ? '✓ Correct' : verdict === 'skipped' ? '— Skipped' : '✕ Incorrect'}
+              {verdict === 'correct' ? '✓ Correct' : verdict === 'skipped' ? '○ Skipped' : '✕ Incorrect'}
             </div>
             {verdict === 'correct' ? null : (
               <div className={styles.verdictBody}>
-                The correct answer is <strong>{LETTERS[correctOptionPosition(question)]}</strong> — {correctText}
+                The correct answer is <strong>{LETTERS[correctOptionPosition(question)]}</strong>: {correctText}
               </div>
             )}
           </div>
@@ -197,7 +197,7 @@ export function QuestionCard({
             <p className={styles.explanationEmpty}>
               <span aria-hidden="true">○</span>
               <span>
-                The source dataset has no explanation for this question. Nothing is generated to fill the gap —
+                The source dataset has no explanation for this question. Nothing is generated to fill the gap:
                 what you see is only ever what the dataset contains.
               </span>
             </p>

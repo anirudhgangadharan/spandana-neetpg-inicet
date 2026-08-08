@@ -14,7 +14,7 @@ export const FLAG_PRESENTATION: Readonly<Record<QuestionFlag, FlagPresentation>>
   possible_text_corruption: {
     label: 'Possible text error',
     description:
-      'This question matches a known defect in the source dataset where the letters "rt" were dropped from words (for example "artery" appearing as "aery"). The text is shown exactly as published — it is deliberately not auto-corrected, because silently rewriting medical terms is more dangerous than showing them broken.',
+      'This question matches a known defect in the source dataset where the letters "rt" were dropped from words (for example "artery" appearing as "aery"). The text is shown exactly as published. It is deliberately not auto-corrected, because silently rewriting medical terms is more dangerous than showing them broken.',
     placement: 'card',
     tone: 'warning',
   },
@@ -47,7 +47,7 @@ export const FLAG_PRESENTATION: Readonly<Record<QuestionFlag, FlagPresentation>>
   multi_choice_type: {
     label: 'Labelled "multi"',
     description:
-      'The dataset labels this question as multiple-answer, but it carries exactly one correct answer — a known upstream labelling inconsistency affecting about a third of the corpus. It is treated, and scored, as single-answer.',
+      'The dataset labels this question as multiple-answer, but it carries exactly one correct answer, a known upstream labelling inconsistency affecting about a third of the corpus. It is treated, and scored, as single-answer.',
     placement: 'detail',
     tone: 'neutral',
   },
