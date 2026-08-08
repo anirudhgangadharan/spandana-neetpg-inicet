@@ -4,7 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'MedMCQA Practice',
   description:
-    'Practice AIIMS and NEET-PG style questions from the MedMCQA research dataset. Exam preparation only — not clinical guidance.',
+    'Practice AIIMS/NEET-PG and USMLE style questions from the MedMCQA and MedQA-USMLE research datasets. Exam preparation only — not clinical guidance.',
   applicationName: 'MedMCQA Practice',
   robots: { index: false, follow: false },
 };

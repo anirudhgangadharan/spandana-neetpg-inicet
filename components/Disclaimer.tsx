@@ -88,12 +88,13 @@ export function DisclaimerGate({ acknowledged, onAcknowledge }: DisclaimerProps)
         <div id="disclaimer-body" className={uiStyles.disclaimerBody}>
           <p>
             <strong>This is exam-preparation material, not clinical guidance.</strong> Every question and
-            answer here comes from MedMCQA, a public research dataset of AIIMS and NEET-PG style questions. It
-            must not be used to make decisions about patient care.
+            answer here comes from a public research dataset &mdash; MedMCQA (AIIMS / NEET-PG style questions)
+            or USMLE (MedQA-USMLE, US medical licensing exam questions), labelled per card. It must not be used
+            to make decisions about patient care.
           </p>
           <p>
-            <strong>The dataset contains known errors.</strong> They are documented, and this app shows them to
-            you rather than hiding them:
+            <strong>The datasets contain known errors.</strong> They are documented, and this app shows them to
+            you rather than hiding them. In the MedMCQA portion of the corpus:
           </p>
           <ul style={{ margin: 0, paddingInlineStart: '20px', display: 'grid', gap: 'var(--space-1)' }}>
             <li>
@@ -107,6 +108,10 @@ export function DisclaimerGate({ acknowledged, onAcknowledge }: DisclaimerProps)
             </li>
             <li>About one question in eight has no explanation at all.</li>
           </ul>
+          <p>
+            The USMLE portion has no explanation field at all &mdash; every USMLE card shows the same honest
+            empty state for that reason, not because anything is missing or hidden.
+          </p>
           <p>
             Nothing on any card is generated, inferred, or rewritten. Where the dataset is silent, this app is
             silent too. When an answer looks wrong to you, it may well be &mdash; use
@@ -134,7 +139,7 @@ export function DisclaimerFooter(): React.JSX.Element {
         dataset that contains known errata. Never use it for patient care decisions.
       </p>
       <p style={{ marginTop: 'var(--space-2)' }}>
-        Questions from <strong>MedMCQA</strong> — Pal, Umapathi &amp; Sankarasubbu,{' '}
+        MedMCQA questions — Pal, Umapathi &amp; Sankarasubbu,{' '}
         <em>MedMCQA: A Large-scale Multi-Subject Multi-Choice Dataset for Medical domain Question Answering</em>,
         PMLR v174, 2022.{' '}
         <a href="https://proceedings.mlr.press/v174/pal22a.html" target="_blank" rel="noreferrer noopener">
@@ -154,7 +159,21 @@ export function DisclaimerFooter(): React.JSX.Element {
         </a>
       </p>
       <p style={{ marginTop: 'var(--space-2)' }}>
-        Answers come from the dataset alone. Nothing is generated, inferred, or auto-corrected; questions with
+        USMLE questions — Jin, Pan, Oufattole, Weng, Fang &amp; Szolovits,{' '}
+        <em>What Disease does this Patient Have? A Large-scale Open Domain Question Answering Dataset from
+        Medical Exams</em>, arXiv:2009.13081, 2020 (&ldquo;MedQA-USMLE&rdquo;, US English subset).{' '}
+        <a href="https://arxiv.org/abs/2009.13081" target="_blank" rel="noreferrer noopener">
+          Paper
+        </a>
+        {' · '}
+        <a href="https://github.com/jind11/MedQA" target="_blank" rel="noreferrer noopener">
+          Dataset repository
+        </a>
+        . No licence file accompanied the copy of this dataset used to build this corpus; a specific
+        redistribution licence is not asserted here.
+      </p>
+      <p style={{ marginTop: 'var(--space-2)' }}>
+        Answers come from the datasets alone. Nothing is generated, inferred, or auto-corrected; questions with
         known defects are labelled rather than hidden.
       </p>
     </footer>

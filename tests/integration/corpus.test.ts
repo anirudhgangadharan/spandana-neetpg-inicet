@@ -85,12 +85,23 @@ describe.skipIf(!corpusExists)('built corpus', () => {
     expect(mismatches).toBe(0);
     expect(rows).toBe(manifest.counts.accepted);
     expect(assertions).toBe(rows * 4);
-    // Guard against the test silently passing over an empty corpus.
-    expect(rows).toBeGreaterThan(150_000);
+    // Guard against the test silently passing over an empty corpus — scoped per
+    // source rather than one combined figure, so a source that silently dropped
+    // to zero rows (and was masked by the other source's volume) is caught.
+    expect(manifest.sources.medmcqa.counts.accepted).toBeGreaterThan(150_000);
+    expect(manifest.sources.usmle.counts.accepted).toBeGreaterThan(10_000);
   });
 
   // -------------------------------------------------------------------------
   // T2 — ETL round-trip against an independent oracle
+  //
+  // MedMCQA only, structurally: the oracle is built from the answer marker
+  // parsed out of MedMCQA's `exp` field (§H1's semantic cross-check), and
+  // USMLE carries no explanation field for such a marker to exist in — there
+  // is nothing here for USMLE data to be checked against. USMLE's answer
+  // resolution is unit-tested directly instead (`tests/unit/usmle.test.ts`),
+  // since it is a simple, unambiguous letter lookup with no H1-style hazard
+  // to cross-check in the first place (DECISIONS.md D-025).
   // -------------------------------------------------------------------------
   it('T2 — options[answerIndex] matches the answer stated in the source explanation', () => {
     const oracle = JSON.parse(fs.readFileSync(ORACLE_PATH, 'utf8')) as {
@@ -242,9 +253,61 @@ describe.skipIf(!corpusExists)('built corpus', () => {
       expect(r.distinct_ids).toBe(r.total);
     });
 
-    it('H2 — the test split is absent from the corpus entirely', () => {
+    it('the global split vocabulary is exactly train/validation', () => {
+      // Reworded from "the test split is absent from the corpus entirely"
+      // (D-021/D-022): that claim held when MedMCQA was the only source, but
+      // USMLE's `test.jsonl` legitimately carries visible answers (unlike
+      // MedMCQA's, which are withheld — H2) and folds into `validation`. The
+      // assertion that still holds unconditionally is narrower: the *global*
+      // Split vocabulary never grows a third value, and no MedMCQA row ever
+      // carries a withheld-ground-truth split.
       const splits = db.prepare('SELECT DISTINCT split FROM questions').all() as { split: string }[];
       expect(splits.map((s) => s.split).sort()).toEqual(['train', 'validation']);
+
+      const medmcqaBadSplit = db
+        .prepare(`SELECT COUNT(*) n FROM questions WHERE source = 'medmcqa' AND split NOT IN ('train','validation')`)
+        .get() as { n: number };
+      expect(medmcqaBadSplit.n).toBe(0);
+    });
+
+    it('D-A — USMLE rows exist in both train and validation, proving the dev/test fold happened', () => {
+      const usmleSplits = db
+        .prepare(`SELECT DISTINCT split FROM questions WHERE source = 'usmle'`)
+        .all() as { split: string }[];
+      expect(usmleSplits.map((s) => s.split).sort()).toEqual(['train', 'validation']);
+
+      // dev.jsonl (1,272) + test.jsonl (1,273) both fold into validation.
+      const usmleValidation = db
+        .prepare(`SELECT COUNT(*) n FROM questions WHERE source = 'usmle' AND split = 'validation'`)
+        .get() as { n: number };
+      expect(usmleValidation.n).toBe(1272 + 1273);
+    });
+
+    it('source facet/count sanity: per-source counts sum to the global total', () => {
+      const rows = db
+        .prepare('SELECT source, COUNT(*) n FROM questions GROUP BY source')
+        .all() as { source: string; n: number }[];
+      const bySource = Object.fromEntries(rows.map((r) => [r.source, r.n]));
+
+      expect(bySource['medmcqa']).toBe(manifest.sources.medmcqa.counts.accepted);
+      expect(bySource['usmle']).toBe(manifest.sources.usmle.counts.accepted);
+      expect((bySource['medmcqa'] ?? 0) + (bySource['usmle'] ?? 0)).toBe(manifest.counts.accepted);
+    });
+
+    it('D-024 — dedup/conflict detection never crosses a source boundary', () => {
+      // The positive proof that per-source DuplicateIndex scoping worked: no
+      // duplicate_of pointer, and no conflicting-answer pairing, ever spans two
+      // different `source` values. Without this, a MedMCQA question and an
+      // unrelated USMLE question could theoretically be flagged as duplicates
+      // of each other purely by textual coincidence.
+      const crossSourceDup = db
+        .prepare(
+          `SELECT COUNT(*) n FROM questions d
+           JOIN questions c ON c.id = d.duplicate_of
+           WHERE d.duplicate_of IS NOT NULL AND d.source != c.source`
+        )
+        .get() as { n: number };
+      expect(crossSourceDup.n).toBe(0);
     });
 
     it('§5.3 assertion 4 — the answer histogram shows no off-by-one signature', () => {
@@ -305,9 +368,19 @@ describe.skipIf(!corpusExists)('built corpus', () => {
       expect(dupes.n).toBe(manifest.counts.duplicates);
     });
 
-    it('I4 — the rejection rate stayed under 2%', () => {
+    it('I4 — the rejection rate stayed under 2%, blended and per source (D-027)', () => {
       const answerable = manifest.counts.accepted + manifest.counts.rejected;
       expect(manifest.counts.rejected / answerable).toBeLessThan(0.02);
+
+      // Per-source, independently — a source-specific ingestion bug could
+      // clear a blended global rate while quietly failing within that source
+      // alone (D-027's small-source-hides-in-the-average risk).
+      for (const source of ['medmcqa', 'usmle'] as const) {
+        const s = manifest.sources[source].counts;
+        const sourceAnswerable = s.accepted + s.rejected;
+        if (sourceAnswerable === 0) continue;
+        expect(s.rejected / sourceAnswerable).toBeLessThan(0.02);
+      }
     });
 
     it('H1 — the manifest records the resolved index base and its evidence', () => {

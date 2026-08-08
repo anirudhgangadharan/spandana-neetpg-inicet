@@ -9,7 +9,7 @@ const add = (t) => {
 
 for (const file of ['train', 'dev', 'test']) {
   const rl = readline.createInterface({
-    input: fs.createReadStream(`data/raw/${file}.json`, { encoding: 'utf8' }),
+    input: fs.createReadStream(`data/raw/medmcqa/${file}.json`, { encoding: 'utf8' }),
     crlfDelay: Infinity,
   });
   for await (const line of rl) {

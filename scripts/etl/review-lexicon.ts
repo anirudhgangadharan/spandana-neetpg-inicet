@@ -18,7 +18,10 @@ const minCorruptFreq = Number.parseInt(process.argv[2] ?? '3', 10);
 
 async function main(): Promise<void> {
   const counts = new Map<string, number>();
-  for (const file of discoverSources(path.join(ROOT, 'data', 'raw'))) {
+  // H4's lexicon is MedMCQA-only (D-D) — that text-loss defect is specific to
+  // MedMCQA's provenance pipeline, so USMLE files are skipped here too.
+  const medmcqaSources = discoverSources(path.join(ROOT, 'data', 'raw')).filter((d) => d.source === 'medmcqa');
+  for (const { file } of medmcqaSources) {
     const format = await detectFormat(file);
     for await (const item of streamRecords(file, format)) {
       if (!item.ok) continue;

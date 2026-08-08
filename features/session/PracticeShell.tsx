@@ -172,10 +172,10 @@ export function PracticeShell({ facets, copIndexBase, appVersion }: PracticeShel
             </section>
           ) : !inSession ? (
             <section className={`card ${styles.empty}`}>
-              <h1 className={styles.emptyTitle}>MedMCQA practice</h1>
+              <h1 className={styles.emptyTitle}>Medical MCQ practice</h1>
               <p className={styles.emptyBody}>
-                {facets.sessionEligible.toLocaleString('en-IN')} questions across {facets.subjects.length}{' '}
-                subjects, drawn from the MedMCQA research dataset. Choose your filters on the left and start a
+                {facets.sessionEligible.toLocaleString('en-IN')} questions drawn from the MedMCQA and USMLE
+                (MedQA-USMLE) research datasets. Choose a question bank and your filters on the left and start a
                 session.
               </p>
               <p className={styles.emptyHint}>

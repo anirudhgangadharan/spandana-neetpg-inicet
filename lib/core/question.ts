@@ -7,7 +7,7 @@
  * answer key even by accident.
  */
 
-import type { AnswerIndex, ChoiceType, Question, QuestionFlag, Split } from '@/types';
+import type { AnswerIndex, ChoiceType, Question, QuestionFlag, QuestionSource, Split } from '@/types';
 import { isAnswerIndex } from './answer-index';
 
 /** The persisted row shape. Column names are snake_case and deliberately differ
@@ -15,6 +15,7 @@ import { isAnswerIndex } from './answer-index';
  *  name the answer field at all. */
 export interface QuestionRow {
   readonly id: string;
+  readonly source: string;
   readonly split: string;
   readonly stem: string;
   readonly opt_a: string;
@@ -41,6 +42,7 @@ export class CorpusIntegrityError extends Error {
 
 export interface CreateQuestionInput {
   readonly id: string;
+  readonly source: QuestionSource;
   readonly split: Split;
   readonly stem: string;
   readonly options: readonly [string, string, string, string];
@@ -75,6 +77,7 @@ export function createQuestion(input: CreateQuestionInput): Question {
 
   const q: Question = {
     id: input.id,
+    source: input.source,
     split: input.split,
     stem: input.stem,
     options: Object.freeze([input.options[0], input.options[1], input.options[2], input.options[3]] as const),
@@ -92,6 +95,8 @@ export function createQuestion(input: CreateQuestionInput): Question {
 
 const SPLITS: readonly string[] = ['train', 'validation'];
 const CHOICE_TYPES: readonly string[] = ['single', 'multi'];
+/** Closed list, deliberately: see the doc comment on `QuestionSource` in types/index.ts. */
+const SOURCES: readonly string[] = ['medmcqa', 'usmle'];
 
 /**
  * Map a persisted row to a frozen Question, failing closed on anything the
@@ -101,6 +106,9 @@ const CHOICE_TYPES: readonly string[] = ['single', 'multi'];
 export function questionFromRow(row: QuestionRow): Question {
   if (!isAnswerIndex(row.answer_index)) {
     throw new CorpusIntegrityError(`row ${row.id}: answer_index ${row.answer_index} outside {0,1,2,3}`);
+  }
+  if (!SOURCES.includes(row.source)) {
+    throw new CorpusIntegrityError(`row ${row.id}: unknown source "${row.source}"`);
   }
   if (!SPLITS.includes(row.split)) {
     throw new CorpusIntegrityError(`row ${row.id}: unknown split "${row.split}"`);
@@ -122,6 +130,7 @@ export function questionFromRow(row: QuestionRow): Question {
 
   return createQuestion({
     id: row.id,
+    source: row.source as QuestionSource,
     split: row.split as Split,
     stem: row.stem,
     options: [row.opt_a, row.opt_b, row.opt_c, row.opt_d],

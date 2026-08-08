@@ -8,7 +8,7 @@
  */
 
 import fc from 'fast-check';
-import type { AnswerIndex, ChoiceType, Question, QuestionFlag, Split } from '@/types';
+import type { AnswerIndex, ChoiceType, Question, QuestionFlag, QuestionSource, Split } from '@/types';
 import { createQuestion } from '@/lib/core/question';
 
 export const ANSWER_INDEX_ARB: fc.Arbitrary<AnswerIndex> = fc.constantFrom<AnswerIndex>(0, 1, 2, 3);
@@ -20,6 +20,7 @@ const OPTION_ARB = fc.string({ minLength: 1, maxLength: 40 }).map((s) => (s.trim
 export const QUESTION_ARB: fc.Arbitrary<Question> = fc
   .record({
     id: fc.uuid(),
+    source: fc.constantFrom<QuestionSource>('medmcqa', 'usmle'),
     split: fc.constantFrom<Split>('train', 'validation'),
     stem: fc.string({ minLength: 10, maxLength: 200 }).map((s) => (s.trim().length >= 10 ? s : 'stem stem stem')),
     options: fc.tuple(OPTION_ARB, OPTION_ARB, OPTION_ARB, OPTION_ARB),
@@ -40,6 +41,7 @@ export const QUESTION_ARB: fc.Arbitrary<Question> = fc
 export function makeQuestion(overrides: Partial<Parameters<typeof createQuestion>[0]> = {}): Question {
   return createQuestion({
     id: 'q-1',
+    source: 'medmcqa',
     split: 'train',
     stem: 'Which vitamin is synthesised solely by microorganisms?',
     options: ['Vitamin A', 'Vitamin C', 'Vitamin B12', 'Vitamin D'],

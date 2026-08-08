@@ -7,14 +7,16 @@ sdk: docker
 app_port: 3000
 pinned: false
 license: apache-2.0
-short_description: AIIMS / NEET-PG practice over the MedMCQA dataset
+short_description: AIIMS/NEET-PG and USMLE practice over MedMCQA + MedQA-USMLE
 ---
 
 # MedMCQA Practice
 
-Practice AIIMS and NEET-PG style questions over the
-[MedMCQA](https://github.com/medmcqa/medmcqa) research dataset — 186,791
-questions across 21 subjects.
+Practice AIIMS/NEET-PG style questions from
+[MedMCQA](https://github.com/medmcqa/medmcqa) and USMLE-style questions from
+[MedQA-USMLE](https://github.com/jind11/MedQA) — 199,514 questions total
+(186,791 MedMCQA across 21 subjects + 12,723 USMLE, US English 4-option
+subset). Pick a question bank in the sidebar; MedMCQA is the default.
 
 > **Not clinical guidance.** This is exam-preparation material from a public
 > research dataset that contains known errata. Never use it for patient care
@@ -40,6 +42,9 @@ Because the dataset has real defects, they are **labelled rather than hidden**:
   produce.
 - **About one question in eight** has no explanation. That empty state is
   designed, not apologised for.
+- The **USMLE question bank has no explanation field at all** — it shows the
+  same honest empty state on every card, for that reason, not because
+  anything is missing.
 
 ## Correctness
 
@@ -53,18 +58,20 @@ verdict = (selection === answerIndex) ? CORRECT : INCORRECT
 No string comparison, no normalisation, no similarity, no fallback. That
 property is enforced rather than trusted:
 
-- The dataset's answer encoding is resolved **empirically** at build time by
-  three independent methods that must agree, because the two published
-  distributions of MedMCQA disagree about whether answers are 0- or 1-indexed.
-  Getting it wrong would make every answer wrong while everything still appeared
-  to work.
-- The whole corpus is checksummed at build time and re-verified at startup. If
-  the answer key does not match, the app refuses to serve any questions at all.
+- MedMCQA's answer encoding is resolved **empirically** at build time by three
+  independent methods that must agree, because the two published distributions
+  of MedMCQA disagree about whether answers are 0- or 1-indexed. Getting it
+  wrong would make every answer wrong while everything still appeared to work.
+  USMLE's answer field has no such ambiguity — it's a direct letter lookup,
+  validated the same way every other field is (fail closed, never guessed).
+- The whole corpus — both question banks — is checksummed at build time and
+  re-verified at startup. If the answer key does not match, the app refuses to
+  serve any questions at all.
 - A CI grep enforces that the answer field is unreadable outside the trusted
   core, so no UI code can improvise its own notion of correctness.
-- 193 tests, including an exhaustive pass asserting the answer mapping over
-  every question and every option, and a round-trip test against an oracle
-  derived independently of the encoding under test.
+- 260+ tests, including an exhaustive pass asserting the answer mapping over
+  every question and every option in the built corpus, and a round-trip test
+  against an oracle derived independently of the encoding under test.
 
 Full reasoning, including every deviation from the specification and the bugs
 found along the way, is in [`DECISIONS.md`](DECISIONS.md).
@@ -75,7 +82,10 @@ found along the way, is in [`DECISIONS.md`](DECISIONS.md).
 pnpm install
 ```
 
-Put the MedMCQA JSON files in `data/raw/`, then build the corpus:
+Put MedMCQA's `train.json`/`dev.json`/`test.json` in `data/raw/medmcqa/`, and
+(optionally) USMLE's 4-option `train.jsonl`/`dev.jsonl`/`test.jsonl` in
+`data/raw/usmle/` — a source with no files there simply contributes nothing to
+the build. Then build the corpus:
 
 ```bash
 pnpm data:build
@@ -96,6 +106,16 @@ Questions from **MedMCQA**:
 [Paper](https://proceedings.mlr.press/v174/pal22a.html) ·
 [Dataset](https://github.com/medmcqa/medmcqa) ·
 [Licence](LICENSE-DATASET.txt) (Apache-2.0)
+
+Questions from **MedQA-USMLE** (US English, 4-option subset):
+
+> Di Jin, Eileen Pan, Nassim Oufattole, Wei-Hung Weng, Hanyi Fang, Peter
+> Szolovits. *What Disease does this Patient Have? A Large-scale Open Domain
+> Question Answering Dataset from Medical Exams.* arXiv:2009.13081, 2020.
+
+[Paper](https://arxiv.org/abs/2009.13081) ·
+[Dataset](https://github.com/jind11/MedQA) ·
+Licence not asserted — see [`ATTRIBUTION.md`](ATTRIBUTION.md).
 
 Full attribution and the list of transformations applied during import:
 [`ATTRIBUTION.md`](ATTRIBUTION.md).

@@ -196,6 +196,7 @@ describe('I3 — createQuestion returns a frozen, validated question', () => {
 describe('questionFromRow — fails closed on a corrupted database', () => {
   const baseRow: QuestionRow = {
     id: 'r1',
+    source: 'medmcqa',
     split: 'train',
     stem: 'A sufficiently long stem for validation',
     opt_a: 'A',
@@ -228,9 +229,15 @@ describe('questionFromRow — fails closed on a corrupted database', () => {
     expect(() => questionFromRow({ ...baseRow, answer_index: -1 })).toThrow(/outside/);
   });
 
-  it('rejects an unknown split or choice_type', () => {
+  it('rejects an unknown source, split, or choice_type', () => {
+    expect(() => questionFromRow({ ...baseRow, source: 'nbme' })).toThrow(/unknown source/);
     expect(() => questionFromRow({ ...baseRow, split: 'test' })).toThrow(/unknown split/);
     expect(() => questionFromRow({ ...baseRow, choice_type: 'many' })).toThrow(/unknown choice_type/);
+  });
+
+  it('accepts a usmle-sourced row', () => {
+    const q = questionFromRow({ ...baseRow, source: 'usmle' });
+    expect(q.source).toBe('usmle');
   });
 
   it('rejects unreadable or non-array flags', () => {

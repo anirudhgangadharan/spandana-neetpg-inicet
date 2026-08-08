@@ -18,12 +18,25 @@ import {
   listQuestions,
   type QuestionFilters,
 } from '@/lib/db/queries';
-import type { Split } from '@/types';
+import type { QuestionSource, Split } from '@/types';
 
 const VALID_SPLITS: readonly string[] = ['train', 'validation'];
+const VALID_SOURCES: readonly string[] = ['medmcqa', 'usmle'];
 
+/**
+ * Shared by `/api/questions`, `/api/search`, and `/api/session/plan` (all
+ * import this function), so this is the single point that decides the
+ * default question bank.
+ *
+ * Absence of `?source=` defaults to `['medmcqa']` — NOT "every source" — so
+ * every existing link, bookmark, or API caller keeps seeing exactly what it
+ * saw before USMLE existed. An explicit `?source=usmle` (or
+ * `&source=medmcqa&source=usmle`) opts in.
+ */
 export function filtersFromParams(params: URLSearchParams): QuestionFilters {
+  const requestedSources = readList(params, 'source').filter((s): s is QuestionSource => VALID_SOURCES.includes(s));
   return {
+    sources: params.has('source') ? requestedSources : ['medmcqa'],
     subjects: readList(params, 'subject'),
     topics: readList(params, 'topic'),
     splits: readList(params, 'split').filter((s): s is Split => VALID_SPLITS.includes(s)),

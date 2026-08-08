@@ -8,6 +8,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { createHash } from 'node:crypto';
 import { csvToRecords } from '@/lib/parser/csv';
+import type { QuestionSource } from '@/types';
 
 export type SourceFormat = 'jsonl' | 'json-array' | 'csv';
 
@@ -69,16 +70,51 @@ export async function* streamRecords(filePath: string, format: SourceFormat): As
 }
 
 /**
- * Source files in `data/raw`, sorted for determinism.
- * `__MACOSX/` and AppleDouble `._` siblings are archive cruft (Appendix A.1).
+ * Fixed, closed mapping of corpus dimension -> its subdirectory under
+ * `data/raw/`. Deliberately not a directory scan: a third source cannot be
+ * silently picked up just by dropping a folder in — it requires adding an
+ * entry here, which is a reviewed code change, plus a split-mapping and
+ * answer-resolution path for it (see `scripts/etl/build.ts`).
  */
-export function discoverSources(rawDir: string): string[] {
-  if (!fs.existsSync(rawDir)) return [];
-  return fs
-    .readdirSync(rawDir, { withFileTypes: true })
-    .filter((d) => d.isFile() && /\.(json|jsonl|csv)$/i.test(d.name) && !d.name.startsWith('._'))
-    .map((d) => path.join(rawDir, d.name))
-    .sort();
+export const SOURCE_DIRS: Readonly<Record<QuestionSource, string>> = Object.freeze({
+  medmcqa: 'medmcqa',
+  usmle: 'usmle',
+});
+
+export interface DiscoveredFile {
+  readonly source: QuestionSource;
+  readonly file: string;
+}
+
+/**
+ * Source files under `data/raw/<source>/`, one bucket per `SOURCE_DIRS` entry,
+ * sorted within each bucket for determinism. A source whose directory doesn't
+ * exist yet contributes zero files rather than erroring — this is what lets
+ * the ETL scaffolding for a new source land before that source's data does
+ * (see the phased rollout in DECISIONS.md).
+ *
+ * `__MACOSX/` and AppleDouble `._` siblings are archive cruft (Appendix A.1).
+ *
+ * Source is assigned by WHICH DIRECTORY a file was found in, never by
+ * filename. This is what makes it structurally impossible for a second
+ * source's `train.jsonl`/`dev.jsonl` to merge into another source's split —
+ * two sources can each have a file literally named `train.jsonl` and they
+ * still never touch each other's data.
+ */
+export function discoverSources(rawDir: string): DiscoveredFile[] {
+  const out: DiscoveredFile[] = [];
+  const sourceOrder = Object.keys(SOURCE_DIRS) as QuestionSource[];
+  for (const source of sourceOrder) {
+    const dir = path.join(rawDir, SOURCE_DIRS[source]);
+    if (!fs.existsSync(dir)) continue;
+    const files = fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((d) => d.isFile() && /\.(json|jsonl|csv)$/i.test(d.name) && !d.name.startsWith('._'))
+      .map((d) => path.join(dir, d.name))
+      .sort();
+    for (const file of files) out.push({ source, file });
+  }
+  return out;
 }
 
 export async function sha256File(filePath: string): Promise<string> {

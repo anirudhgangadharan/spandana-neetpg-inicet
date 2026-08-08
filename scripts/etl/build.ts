@@ -4,17 +4,26 @@
  * NOT part of the Next.js runtime. Plain Node/TypeScript with its own tests.
  * Output is deterministic: the same input produces the same corpus.sqlite.
  *
- *   data/raw/*.json  ─▶  ETL  ─▶  data/build/corpus.sqlite
- *                                 data/build/manifest.json
- *                                 data/build/facets.json
- *                                 data/build/validation-report.json
- *                                 data/build/corruption-lexicon.json
+ *   data/raw/medmcqa/*.json   ─┐
+ *   data/raw/usmle/*.jsonl    ─┴─▶  ETL  ─▶  data/build/corpus.sqlite
+ *                                            data/build/manifest.json
+ *                                            data/build/facets.json
+ *                                            data/build/validation-report.json
+ *                                            data/build/corruption-lexicon.json
+ *
+ * Two independent question banks (`QuestionSource`) share one pipeline and one
+ * output table, but nothing about how they're discovered, split, validated, or
+ * deduplicated is shared implicitly — see DECISIONS.md D-021 through D-027.
+ * MedMCQA's H1/H4 machinery (cop-index-base resolution, the corruption lexicon)
+ * only ever sees MedMCQA records; USMLE's answer resolution is a small,
+ * unambiguous letter lookup with no equivalent hazard.
  *
  * The pipeline makes three passes over the corpus rather than holding it in
  * memory:
  *   A. diagnostics  — cop range/histogram, answer-marker cross-check, token
- *                     frequencies for the H4 lexicon
+ *                     frequencies for the H4 lexicon (MedMCQA files only)
  *   B. duplicate index — group records by normalised key, detect H9 conflicts
+ *                     (one DuplicateIndex per source — never across sources)
  *   C. write        — validate again and insert, now that corpus-wide facts
  *                     (duplicateOf, conflicting answers) are known
  *
@@ -32,8 +41,10 @@ import type {
   BuildManifest,
   FacetsFile,
   QuestionFlag,
+  QuestionSource,
   Rejection,
   RejectionCode,
+  SourceManifestEntry,
   Split,
 } from '@/types';
 import { computeAnswerKeyHash } from '@/lib/core/answer-key';
@@ -41,19 +52,22 @@ import { checkAnswerHistogram, parseAnswerMarker, resolveCopIndexBase } from '@/
 import { buildCorruptionLexicon, countTokensInto } from '@/lib/parser/corruption';
 import { DuplicateIndex, duplicateKey } from '@/lib/parser/dedupe';
 import { detectSchema, MIN_SCHEMA_CONFIDENCE, type SchemaDetection } from '@/lib/parser/schema';
-import { validateRecord, type ValidationContext } from '@/lib/parser/validate';
+import { validateRecord, type ValidationContext, type ValidationResult } from '@/lib/parser/validate';
+import { validateUsmleRecord, type UsmleValidationContext } from '@/lib/parser/usmle';
 import { toPlainText } from '@/lib/utils/sanitise';
-import { detectFormat, discoverSources, sha256File, streamRecords, type SourceFormat } from './read';
+import { detectFormat, discoverSources, sha256File, streamRecords, type DiscoveredFile, type SourceFormat } from './read';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const RAW_DIR = path.join(ROOT, 'data', 'raw');
 const BUILD_DIR = path.join(ROOT, 'data', 'build');
 const APP_VERSION = '0.1.0';
 
-/** §5.3 assertion 4 band. Outside this, halt. */
+const SOURCES: readonly QuestionSource[] = ['medmcqa', 'usmle'];
+
+/** §5.3 assertion 4 band. Outside this, halt (MedMCQA only — see D-027). */
 const HISTOGRAM_LOWER = 0.1;
 const HISTOGRAM_UPPER = 0.4;
-/** I4 — build fails above this rejection rate. */
+/** I4 — build fails above this rejection rate, evaluated PER SOURCE (D-027). */
 const MAX_REJECTION_RATE = 0.02;
 /** Flags that represent a data-quality warning worth filtering on. */
 const QUALITY_WARNING_FLAGS: ReadonlySet<QuestionFlag> = new Set<QuestionFlag>([
@@ -81,67 +95,118 @@ function fail(message: string): never {
 
 interface Source {
   readonly file: string;
+  /** Raw basename, pre-fold (e.g. `train`, `dev`, `test`). */
   readonly name: string;
+  readonly source: QuestionSource;
   readonly format: SourceFormat;
-  readonly detection: SchemaDetection;
+  /** Only present for `source === 'medmcqa'` — USMLE's schema is fixed by
+   *  construction and validated record-by-record instead of structurally
+   *  inferred (D-024). */
+  readonly detection: SchemaDetection | null;
   readonly split: Split | null;
+  readonly answerable: boolean;
 }
 
+/** Stable label for logs/rejection-sample provenance; also the `perSourceRaw`
+ *  map key, since two sources can legitimately each have a file named `train`. */
+const sourceKey = (src: Source): string => `${src.source}:${src.name}`;
+
 /** MedMCQA's `dev` is the validation split (§2.2). `test` never enters the corpus (H2). */
-function splitFor(name: string): Split | null {
+function splitForMedmcqa(name: string): Split | null {
   const n = name.toLowerCase();
   if (n === 'train') return 'train';
   if (n === 'dev' || n === 'validation' || n === 'valid') return 'validation';
   return null;
 }
 
+/**
+ * USMLE's `test.jsonl` — unlike MedMCQA's — carries real, visible answers, so
+ * it is legitimately answerable data, not H2's withheld ground truth. This app
+ * has no notion of "held out for model evaluation"; to a person practising,
+ * dev and test are both just "more questions with visible answers" (D-021/D-022).
+ * Both fold into `'validation'` rather than adding a third `Split` value.
+ */
+function splitForUsmle(name: string): Split | null {
+  const n = name.toLowerCase();
+  if (n === 'train') return 'train';
+  if (n === 'dev' || n === 'test') return 'validation';
+  return null;
+}
+
+/** Per-source accumulators, alongside (not replacing) the existing global ones. */
+interface SourceAccumulator {
+  accepted: number;
+  answerableRaw: number;
+  sessionEligible: number;
+  answerCounts: [number, number, number, number];
+  rejectionCounts: Map<RejectionCode, number>;
+}
+function newAccumulator(): SourceAccumulator {
+  return { accepted: 0, answerableRaw: 0, sessionEligible: 0, answerCounts: [0, 0, 0, 0], rejectionCounts: new Map() };
+}
+
 async function main(): Promise<void> {
-  log('=== MedMCQA ETL ===');
+  log('=== Question corpus ETL (MedMCQA + USMLE) ===');
   fs.mkdirSync(BUILD_DIR, { recursive: true });
 
   // -------------------------------------------------------------------------
-  // 0. Discover sources and detect their schemas
+  // 0. Discover sources (per-directory, never per-filename — see read.ts) and
+  //    detect MedMCQA's schema. USMLE's schema is fixed by construction.
   // -------------------------------------------------------------------------
-  const files = discoverSources(RAW_DIR);
-  if (files.length === 0) fail(`No source files in ${RAW_DIR}. Extract the archive there first.`);
+  const discovered: DiscoveredFile[] = discoverSources(RAW_DIR);
+  if (discovered.length === 0) {
+    fail(`No source files under ${RAW_DIR}/<source>/. Expected data/raw/medmcqa/ and/or data/raw/usmle/.`);
+  }
 
   const sources: Source[] = [];
-  for (const file of files) {
+  for (const { source, file } of discovered) {
     const name = path.basename(file).replace(/\.(json|jsonl|csv)$/i, '');
     const format = await detectFormat(file);
-    const sample: unknown[] = [];
-    for await (const item of streamRecords(file, format)) {
-      if (item.ok) sample.push(item.rec);
-      if (sample.length >= 2000) break;
-    }
-    const detection = detectSchema(sample);
-    sources.push({ file, name, format, detection, split: splitFor(name) });
 
-    log(`source ${name} (${format}): confidence ${detection.confidence}, answerable ${detection.answerable}`);
-    log(`         stem="${detection.mapping.stem}" options=[${detection.mapping.options.join(',')}] answer="${detection.mapping.answer ?? '—'}"`);
-    for (const r of detection.reasons) log(`         note: ${r}`);
+    if (source === 'medmcqa') {
+      const sample: unknown[] = [];
+      for await (const item of streamRecords(file, format)) {
+        if (item.ok) sample.push(item.rec);
+        if (sample.length >= 2000) break;
+      }
+      const detection = detectSchema(sample);
+      const split = splitForMedmcqa(name);
+      sources.push({ file, name, source, format, detection, split, answerable: detection.answerable });
 
-    // An unanswerable source is a confidently-detected known case (H2), not a
-    // parse failure — only answerable sources must clear the confidence bar.
-    if (detection.answerable && detection.confidence < MIN_SCHEMA_CONFIDENCE) {
-      fail(
-        `Schema detection for ${name} scored ${detection.confidence}, below the ${MIN_SCHEMA_CONFIDENCE} threshold.\n` +
-          detection.reasons.map((r) => `  - ${r}`).join('\n') +
-          '\nRefusing to guess at the schema (§5.1).'
-      );
+      log(`source medmcqa/${name} (${format}): confidence ${detection.confidence}, answerable ${detection.answerable}`);
+      log(`         stem="${detection.mapping.stem}" options=[${detection.mapping.options.join(',')}] answer="${detection.mapping.answer ?? '—'}"`);
+      for (const r of detection.reasons) log(`         note: ${r}`);
+
+      // An unanswerable source is a confidently-detected known case (H2), not a
+      // parse failure — only answerable sources must clear the confidence bar.
+      if (detection.answerable && detection.confidence < MIN_SCHEMA_CONFIDENCE) {
+        fail(
+          `Schema detection for medmcqa/${name} scored ${detection.confidence}, below the ${MIN_SCHEMA_CONFIDENCE} threshold.\n` +
+            detection.reasons.map((r) => `  - ${r}`).join('\n') +
+            '\nRefusing to guess at the schema (§5.1).'
+        );
+      }
+    } else {
+      // usmle: known, fixed schema — validated record-by-record in
+      // validateUsmleRecord (D-024) rather than structurally inferred.
+      const split = splitForUsmle(name);
+      sources.push({ file, name, source, format, detection: null, split, answerable: true });
+      log(`source usmle/${name} (${format}): fixed schema, split=${split ?? '(excluded — unrecognised file name)'}`);
     }
   }
 
-  const corpusSources = sources.filter((s) => s.detection.answerable && s.split !== null);
-  const excludedSources = sources.filter((s) => !s.detection.answerable || s.split === null);
+  const corpusSources = sources.filter((s) => s.answerable && s.split !== null);
+  const excludedSources = sources.filter((s) => !s.answerable || s.split === null);
   if (corpusSources.length === 0) fail('No answerable source files found; the corpus would be empty.');
 
   log();
-  log(`corpus sources : ${corpusSources.map((s) => s.name).join(', ')}`);
-  log(`excluded (H2)  : ${excludedSources.map((s) => s.name).join(', ') || 'none'}`);
+  log(`corpus sources : ${corpusSources.map(sourceKey).join(', ')}`);
+  log(`excluded (H2)  : ${excludedSources.map(sourceKey).join(', ') || 'none'}`);
 
   // -------------------------------------------------------------------------
-  // Pass A — diagnostics: cop range/histogram, answer markers, token frequencies
+  // Pass A — diagnostics: cop range/histogram, answer markers, token
+  // frequencies. MedMCQA only (D-D/D-E) — USMLE has no equivalent hazard to
+  // diagnose, so its records are counted here but otherwise skipped.
   // -------------------------------------------------------------------------
   log();
   log('--- Pass A: diagnostics ---');
@@ -156,6 +221,7 @@ async function main(): Promise<void> {
   let rawRecordCount = 0;
   let parseFailures = 0;
   const perSourceRaw = new Map<string, number>();
+  const rawBySource: Record<QuestionSource, number> = { medmcqa: 0, usmle: 0 };
 
   for (const src of sources) {
     let n = 0;
@@ -166,12 +232,18 @@ async function main(): Promise<void> {
       }
       n++;
       rawRecordCount++;
+      rawBySource[src.source]++;
+
+      if (src.source !== 'medmcqa' || src.detection === null) continue;
+
       const rec = item.rec as Record<string, unknown>;
       const m = src.detection.mapping;
 
-      // Token frequencies come from the whole archive including the test split
-      // and the explanations: more text yields better frequency estimates, and
-      // the lexicon is only ever used to FLAG, never to alter text.
+      // Token frequencies come from the whole MedMCQA archive including the
+      // test split and the explanations: more text yields better frequency
+      // estimates, and the lexicon is only ever used to FLAG, never to alter
+      // text. USMLE tokens never enter this lexicon (D-D) — that defect is
+      // specific to MedMCQA's provenance pipeline.
       if (m.stem !== null) countTokensInto(tokenCounts, toPlainText(rec[m.stem] as string));
       for (const k of m.options) countTokensInto(tokenCounts, toPlainText(rec[k] as string));
       if (m.explanation !== null) countTokensInto(tokenCounts, toPlainText(rec[m.explanation] as string));
@@ -198,16 +270,16 @@ async function main(): Promise<void> {
         copNulls++;
       }
     }
-    perSourceRaw.set(src.name, n);
-    log(`  ${src.name.padEnd(8)} ${num(n).padStart(8)} records`);
+    perSourceRaw.set(sourceKey(src), n);
+    log(`  ${sourceKey(src).padEnd(14)} ${num(n).padStart(8)} records`);
   }
   if (parseFailures > 0) log(`  parse failures: ${num(parseFailures)}`);
 
   // -------------------------------------------------------------------------
-  // H1 — resolve the cop index base. Never guess.
+  // H1 — resolve the cop index base. Never guess. MedMCQA-specific.
   // -------------------------------------------------------------------------
   log();
-  log('--- H1: resolving copIndexBase ---');
+  log('--- H1: resolving copIndexBase (medmcqa) ---');
   const resolution = resolveCopIndexBase({
     min: copMin,
     max: copMax,
@@ -234,16 +306,16 @@ async function main(): Promise<void> {
   );
 
   // -------------------------------------------------------------------------
-  // H4 — derive the corruption lexicon from corpus token frequencies
+  // H4 — derive the corruption lexicon from MedMCQA token frequencies only
   // -------------------------------------------------------------------------
-  log('--- H4: deriving corruption lexicon ---');
+  log('--- H4: deriving corruption lexicon (medmcqa only) ---');
   const lexiconEntries = buildCorruptionLexicon(tokenCounts);
   const lexicon = new Set(lexiconEntries.map((e) => e.corrupted));
   fs.writeFileSync(
     path.join(BUILD_DIR, 'corruption-lexicon.json'),
     JSON.stringify(
       {
-        generatedFrom: 'corpus token frequencies',
+        generatedFrom: 'medmcqa token frequencies only (D-D)',
         distinctTokens: tokenCounts.size,
         entryCount: lexiconEntries.length,
         note: 'Review this list. Detection FLAGS records; it never repairs text (§13 anti-requirement 5).',
@@ -257,34 +329,60 @@ async function main(): Promise<void> {
   log(`  top: ${lexiconEntries.slice(0, 12).map((e) => `${e.corrupted}→${e.intact}(${e.corruptedFreq})`).join(', ')}`);
 
   // -------------------------------------------------------------------------
-  // Pass B — duplicate index (H6) and conflicting-answer detection (H9)
+  // Pass B — duplicate index (H6) and conflicting-answer detection (H9).
+  // One DuplicateIndex PER SOURCE (D-D/D-024) — structurally impossible for a
+  // MedMCQA question and a USMLE question to be flagged as duplicates of each
+  // other, since they are never inserted into the same index.
   // -------------------------------------------------------------------------
   log();
-  log('--- Pass B: duplicate index ---');
-  const duplicates = new DuplicateIndex();
+  log('--- Pass B: duplicate index (per source) ---');
+  const duplicatesBySource: Record<QuestionSource, DuplicateIndex> = {
+    medmcqa: new DuplicateIndex(),
+    usmle: new DuplicateIndex(),
+  };
   {
     const seenIds = new Set<string>();
     for (const src of corpusSources) {
-      const ctx: ValidationContext = {
-        mapping: src.detection.mapping,
-        copIndexBase,
-        split: src.split as Split,
-        sourceAnswerable: true,
-        seenIds,
-        corruptionLexicon: lexicon,
-      };
-      for await (const item of streamRecords(src.file, src.format)) {
-        if (!item.ok) continue;
-        const result = validateRecord(item.rec, ctx);
-        if (!result.ok) continue;
-        const r = result.record;
-        duplicates.add(duplicateKey(r.stem, r.options), r.id, r.answer);
+      if (src.source === 'medmcqa') {
+        if (src.detection === null) continue;
+        const ctx: ValidationContext = {
+          mapping: src.detection.mapping,
+          copIndexBase,
+          split: src.split as Split,
+          sourceAnswerable: true,
+          seenIds,
+          corruptionLexicon: lexicon,
+        };
+        for await (const item of streamRecords(src.file, src.format)) {
+          if (!item.ok) continue;
+          const result = validateRecord(item.rec, ctx);
+          if (!result.ok) continue;
+          const r = result.record;
+          duplicatesBySource.medmcqa.add(duplicateKey(r.stem, r.options), r.id, r.answer);
+        }
+      } else {
+        const ctx: UsmleValidationContext = { split: src.split as Split, seenIds };
+        for await (const item of streamRecords(src.file, src.format)) {
+          if (!item.ok) continue;
+          const result = validateUsmleRecord(item.rec, src.name, ctx);
+          if (!result.ok) continue;
+          const r = result.record;
+          duplicatesBySource.usmle.add(duplicateKey(r.stem, r.options), r.id, r.answer);
+        }
       }
     }
   }
-  const dupStats = duplicates.stats();
-  log(`  ${num(dupStats.groups)} groups, ${num(dupStats.redundant)} redundant records`);
-  log(`  H9: ${num(dupStats.conflictingGroups)} groups with CONFLICTING answers, covering ${num(dupStats.conflictingRecords)} records`);
+  const dupStatsBySource: Record<QuestionSource, ReturnType<DuplicateIndex['stats']>> = {
+    medmcqa: duplicatesBySource.medmcqa.stats(),
+    usmle: duplicatesBySource.usmle.stats(),
+  };
+  for (const s of SOURCES) {
+    const ds = dupStatsBySource[s];
+    log(
+      `  ${s.padEnd(8)} ${num(ds.groups)} groups, ${num(ds.redundant)} redundant, ` +
+        `H9: ${num(ds.conflictingGroups)} conflicting groups / ${num(ds.conflictingRecords)} records`
+    );
+  }
 
   // -------------------------------------------------------------------------
   // Pass C — validate and write
@@ -300,6 +398,7 @@ async function main(): Promise<void> {
     CREATE TABLE questions (
       rowid            INTEGER PRIMARY KEY,
       id               TEXT    NOT NULL UNIQUE,
+      source           TEXT    NOT NULL CHECK (source IN ('medmcqa','usmle')),
       split            TEXT    NOT NULL,
       stem             TEXT    NOT NULL,
       opt_a            TEXT    NOT NULL,
@@ -321,10 +420,10 @@ async function main(): Promise<void> {
 
   const insert = db.prepare(`
     INSERT INTO questions
-      (id, split, stem, opt_a, opt_b, opt_c, opt_d, answer_index, explanation,
+      (id, source, split, stem, opt_a, opt_b, opt_c, opt_d, answer_index, explanation,
        subject, topic, choice_type, flags, duplicate_of, session_eligible, quality_warning)
     VALUES
-      (@id, @split, @stem, @opt_a, @opt_b, @opt_c, @opt_d, @answer_index, @explanation,
+      (@id, @source, @split, @stem, @opt_a, @opt_b, @opt_c, @opt_d, @answer_index, @explanation,
        @subject, @topic, @choice_type, @flags, @duplicate_of, @session_eligible, @quality_warning)
   `);
 
@@ -336,6 +435,10 @@ async function main(): Promise<void> {
   let accepted = 0;
   let answerableRawCount = 0;
   let sessionEligibleCount = 0;
+  const sourceAcc: Record<QuestionSource, SourceAccumulator> = {
+    medmcqa: newAccumulator(),
+    usmle: newAccumulator(),
+  };
 
   const runPassC = db.transaction(
     (batch: readonly Record<string, string | number | null>[]) => {
@@ -347,78 +450,96 @@ async function main(): Promise<void> {
     const seenIds = new Set<string>();
     let batch: Record<string, string | number | null>[] = [];
 
-    for (const src of corpusSources) {
-      const ctx: ValidationContext = {
-        mapping: src.detection.mapping,
-        copIndexBase,
-        split: src.split as Split,
-        sourceAnswerable: true,
-        seenIds,
-        corruptionLexicon: lexicon,
-      };
-
-      for await (const item of streamRecords(src.file, src.format)) {
-        if (!item.ok) continue;
-        answerableRawCount++;
-        const result = validateRecord(item.rec, ctx);
-
-        if (!result.ok) {
-          rejectionCounts.set(result.code, (rejectionCounts.get(result.code) ?? 0) + 1);
-          // Keep a bounded sample of full rejection detail; counts are exact.
-          if (rejections.length < 500) {
-            rejections.push({
-              code: result.code,
-              split: src.name,
-              line: item.lineNo,
-              id: result.id,
-              detail: result.detail,
-            });
-          }
-          continue;
+    const processResult = (result: ValidationResult, src: Source, lineNo: number): void => {
+      const acc = sourceAcc[src.source];
+      if (!result.ok) {
+        rejectionCounts.set(result.code, (rejectionCounts.get(result.code) ?? 0) + 1);
+        acc.rejectionCounts.set(result.code, (acc.rejectionCounts.get(result.code) ?? 0) + 1);
+        // Keep a bounded sample of full rejection detail; counts are exact.
+        if (rejections.length < 500) {
+          rejections.push({ code: result.code, split: sourceKey(src), line: lineNo, id: result.id, detail: result.detail });
         }
+        return;
+      }
 
-        const r = result.record;
-        const key = duplicateKey(r.stem, r.options);
-        const dupOf = duplicates.duplicateOf(key, r.id);
-        const conflicting = duplicates.hasConflictingAnswers(key);
+      const r = result.record;
+      const duplicates = duplicatesBySource[src.source];
+      const key = duplicateKey(r.stem, r.options);
+      const dupOf = duplicates.duplicateOf(key, r.id);
+      const conflicting = duplicates.hasConflictingAnswers(key);
 
-        const flags: QuestionFlag[] = [...r.flags];
-        // H9 (D-004): flag EVERY member of a conflicting group, canonical
-        // included. Being first in the file is not evidence of being right.
-        if (conflicting) flags.push('conflicting_answer_variant');
-        flags.sort();
+      const flags: QuestionFlag[] = [...r.flags];
+      // H9 (D-004): flag EVERY member of a conflicting group, canonical
+      // included. Being first in the file is not evidence of being right.
+      if (conflicting) flags.push('conflicting_answer_variant');
+      flags.sort();
 
-        for (const f of flags) flagCounts.set(f, (flagCounts.get(f) ?? 0) + 1);
-        answerCounts[r.answer]++;
-        answerKeyEntries.push({ id: r.id, answer: r.answer });
+      for (const f of flags) flagCounts.set(f, (flagCounts.get(f) ?? 0) + 1);
+      answerCounts[r.answer]++;
+      acc.answerCounts[r.answer]++;
+      answerKeyEntries.push({ id: r.id, answer: r.answer });
 
-        const eligible = dupOf === null && !conflicting;
-        if (eligible) sessionEligibleCount++;
-        const warning = flags.some((f) => QUALITY_WARNING_FLAGS.has(f));
+      const eligible = dupOf === null && !conflicting;
+      if (eligible) {
+        sessionEligibleCount++;
+        acc.sessionEligible++;
+      }
+      const warning = flags.some((f) => QUALITY_WARNING_FLAGS.has(f));
 
-        batch.push({
-          id: r.id,
-          split: r.split,
-          stem: r.stem,
-          opt_a: r.options[0],
-          opt_b: r.options[1],
-          opt_c: r.options[2],
-          opt_d: r.options[3],
-          answer_index: r.answer,
-          explanation: r.explanation,
-          subject: r.subject,
-          topic: r.topic,
-          choice_type: r.choiceType,
-          flags: JSON.stringify(flags),
-          duplicate_of: dupOf,
-          session_eligible: eligible ? 1 : 0,
-          quality_warning: warning ? 1 : 0,
-        });
-        accepted++;
+      batch.push({
+        id: r.id,
+        source: src.source,
+        split: r.split,
+        stem: r.stem,
+        opt_a: r.options[0],
+        opt_b: r.options[1],
+        opt_c: r.options[2],
+        opt_d: r.options[3],
+        answer_index: r.answer,
+        explanation: r.explanation,
+        subject: r.subject,
+        topic: r.topic,
+        choice_type: r.choiceType,
+        flags: JSON.stringify(flags),
+        duplicate_of: dupOf,
+        session_eligible: eligible ? 1 : 0,
+        quality_warning: warning ? 1 : 0,
+      });
+      accepted++;
+      acc.accepted++;
 
-        if (batch.length >= 5000) {
-          runPassC(batch);
-          batch = [];
+      if (batch.length >= 5000) {
+        runPassC(batch);
+        batch = [];
+      }
+    };
+
+    for (const src of corpusSources) {
+      const acc = sourceAcc[src.source];
+
+      if (src.source === 'medmcqa') {
+        if (src.detection === null) continue;
+        const ctx: ValidationContext = {
+          mapping: src.detection.mapping,
+          copIndexBase,
+          split: src.split as Split,
+          sourceAnswerable: true,
+          seenIds,
+          corruptionLexicon: lexicon,
+        };
+        for await (const item of streamRecords(src.file, src.format)) {
+          if (!item.ok) continue;
+          answerableRawCount++;
+          acc.answerableRaw++;
+          processResult(validateRecord(item.rec, ctx), src, item.lineNo);
+        }
+      } else {
+        const ctx: UsmleValidationContext = { split: src.split as Split, seenIds };
+        for await (const item of streamRecords(src.file, src.format)) {
+          if (!item.ok) continue;
+          answerableRawCount++;
+          acc.answerableRaw++;
+          processResult(validateUsmleRecord(item.rec, src.name, ctx), src, item.lineNo);
         }
       }
     }
@@ -428,7 +549,7 @@ async function main(): Promise<void> {
   // Records in sources we never intended to ingest are a policy exclusion under
   // H2, not validation rejections — they are reported separately and are not in
   // the I4 denominator (matching Appendix A.9's projection).
-  const excludedByPolicy = excludedSources.reduce((a, s) => a + (perSourceRaw.get(s.name) ?? 0), 0);
+  const excludedByPolicy = excludedSources.reduce((a, s) => a + (perSourceRaw.get(sourceKey(s)) ?? 0), 0);
 
   log(`  accepted ${num(accepted)} / ${num(answerableRawCount)} answerable records`);
   log(`  rejected ${num(answerableRawCount - accepted)}`);
@@ -449,6 +570,8 @@ async function main(): Promise<void> {
     CREATE INDEX idx_q_eligible  ON questions(session_eligible, rowid);
     CREATE INDEX idx_q_warning   ON questions(quality_warning, rowid);
     CREATE INDEX idx_q_subj_elig ON questions(subject, session_eligible, rowid);
+    CREATE INDEX idx_q_source    ON questions(source, rowid);
+    CREATE INDEX idx_q_source_subj ON questions(source, subject, session_eligible, rowid);
   `);
   db.exec(`
     CREATE VIRTUAL TABLE questions_fts USING fts5(
@@ -490,23 +613,41 @@ async function main(): Promise<void> {
   }
   log(`  3. ids unique (${num(idCounts.total)} rows) ......................... PASS`);
 
-  const hist = checkAnswerHistogram(answerCounts, HISTOGRAM_LOWER, HISTOGRAM_UPPER);
-  log(`     histogram: ${hist.shares.map((s, i) => `${'ABCD'[i]}=${(s * 100).toFixed(2)}%`).join('  ')}`);
-  if (!hist.ok) fail(`Assertion 4 FAILED: ${hist.message}`);
-  log('  4. answer-index distribution within 10–40% band .......... PASS');
+  // Assertion 4 is an off-by-one regression guard specific to H1's cop-index-
+  // base ambiguity (D-027) — hard-gated for MedMCQA only. USMLE has no such
+  // failure mode (its answer is a validated letter), so its histogram is
+  // logged for visibility, never gated.
+  const histMedmcqa = checkAnswerHistogram(sourceAcc.medmcqa.answerCounts, HISTOGRAM_LOWER, HISTOGRAM_UPPER);
+  log(`     medmcqa histogram: ${histMedmcqa.shares.map((s, i) => `${'ABCD'[i]}=${(s * 100).toFixed(2)}%`).join('  ')}`);
+  if (!histMedmcqa.ok) fail(`Assertion 4 FAILED (medmcqa): ${histMedmcqa.message}`);
+  log('  4. answer-index distribution within 10–40% band (medmcqa) . PASS');
+
+  const histUsmle = checkAnswerHistogram(sourceAcc.usmle.answerCounts, HISTOGRAM_LOWER, HISTOGRAM_UPPER);
+  log(
+    `     usmle histogram (logged only — no H1-equivalent hazard exists): ` +
+      `${histUsmle.shares.map((s, i) => `${'ABCD'[i]}=${(s * 100).toFixed(2)}%`).join('  ')}` +
+      (histUsmle.ok ? '' : `  [${histUsmle.message}]`)
+  );
 
   const answerKeyHash = computeAnswerKeyHash(answerKeyEntries);
   if (answerKeyHash.length !== 64) fail('Assertion 5 FAILED: answerKeyHash is not a 64-char sha256');
   log(`  5. answerKeyHash written (${answerKeyHash.slice(0, 16)}…) ....... PASS`);
 
-  // I4 — rejection-rate gate
+  // I4 — rejection-rate gate, evaluated per source (D-027): a source-specific
+  // ingestion bug could clear a blended global rate while quietly failing
+  // within that source alone.
   const rejectionRate = answerableRawCount === 0 ? 0 : (answerableRawCount - accepted) / answerableRawCount;
-  log(`     rejection rate: ${(rejectionRate * 100).toFixed(4)}% (threshold ${MAX_REJECTION_RATE * 100}%)`);
-  if (rejectionRate > MAX_REJECTION_RATE) {
-    fail(
-      `I4: rejection rate ${(rejectionRate * 100).toFixed(2)}% exceeds ${MAX_REJECTION_RATE * 100}%.\n` +
-        'This demands human review — see data/build/validation-report.json.'
-    );
+  log(`     blended rejection rate: ${(rejectionRate * 100).toFixed(4)}% (threshold ${MAX_REJECTION_RATE * 100}%, logged only)`);
+  for (const s of SOURCES) {
+    const acc = sourceAcc[s];
+    const rate = acc.answerableRaw === 0 ? 0 : (acc.answerableRaw - acc.accepted) / acc.answerableRaw;
+    log(`     ${s} rejection rate: ${(rate * 100).toFixed(4)}% over ${num(acc.answerableRaw)} records`);
+    if (acc.answerableRaw > 0 && rate > MAX_REJECTION_RATE) {
+      fail(
+        `I4 (${s}): rejection rate ${(rate * 100).toFixed(2)}% exceeds ${MAX_REJECTION_RATE * 100}%.\n` +
+          'This demands human review — see data/build/validation-report.json.'
+      );
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -527,6 +668,9 @@ async function main(): Promise<void> {
   const splitRows = db
     .prepare('SELECT split AS name, COUNT(*) AS count FROM questions GROUP BY split')
     .all() as { name: Split; count: number }[];
+  const sourceRows = db
+    .prepare('SELECT source AS name, COUNT(*) AS count FROM questions GROUP BY source ORDER BY count DESC')
+    .all() as { name: QuestionSource; count: number }[];
 
   const topicsBySubject: Record<string, { name: string; count: number }[]> = {};
   for (const row of topicRows) {
@@ -540,17 +684,47 @@ async function main(): Promise<void> {
     topicsBySubject,
     flags: [...flagCounts.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })),
     splits: splitRows,
+    sources: sourceRows,
     total: accepted,
   };
   fs.writeFileSync(path.join(BUILD_DIR, 'facets.json'), JSON.stringify(facets, null, 2));
 
   const sourceFiles = await Promise.all(
-    files.map(async (f) => ({
-      file: path.basename(f),
-      bytes: fs.statSync(f).size,
-      sha256: await sha256File(f),
+    discovered.map(async ({ source, file }) => ({
+      file: `${source}/${path.basename(file)}`,
+      bytes: fs.statSync(file).size,
+      sha256: await sha256File(file),
     }))
   );
+
+  const sourceManifest: Record<QuestionSource, SourceManifestEntry> = {
+    medmcqa: {
+      counts: {
+        raw: rawBySource.medmcqa,
+        accepted: sourceAcc.medmcqa.accepted,
+        rejected: sourceAcc.medmcqa.answerableRaw - sourceAcc.medmcqa.accepted,
+        duplicates: dupStatsBySource.medmcqa.redundant,
+        conflictingAnswerGroups: dupStatsBySource.medmcqa.conflictingGroups,
+        sessionEligible: sourceAcc.medmcqa.sessionEligible,
+      },
+      answerIndexHistogram: sourceAcc.medmcqa.answerCounts,
+      copIndexBase,
+      copDiagnostics: { rangeMin: copMin, rangeMax: copMax, markerComparable, markerAgree1, markerAgree0 },
+    },
+    usmle: {
+      counts: {
+        raw: rawBySource.usmle,
+        accepted: sourceAcc.usmle.accepted,
+        rejected: sourceAcc.usmle.answerableRaw - sourceAcc.usmle.accepted,
+        duplicates: dupStatsBySource.usmle.redundant,
+        conflictingAnswerGroups: dupStatsBySource.usmle.conflictingGroups,
+        sessionEligible: sourceAcc.usmle.sessionEligible,
+      },
+      answerIndexHistogram: sourceAcc.usmle.answerCounts,
+      copIndexBase: null,
+      copDiagnostics: null,
+    },
+  };
 
   const manifest: BuildManifest = {
     builtAt: new Date().toISOString(),
@@ -568,12 +742,13 @@ async function main(): Promise<void> {
       raw: rawRecordCount,
       accepted,
       rejected: answerableRawCount - accepted,
-      duplicates: dupStats.redundant,
-      conflictingAnswerGroups: dupStats.conflictingGroups,
+      duplicates: dupStatsBySource.medmcqa.redundant + dupStatsBySource.usmle.redundant,
+      conflictingAnswerGroups: dupStatsBySource.medmcqa.conflictingGroups + dupStatsBySource.usmle.conflictingGroups,
       sessionEligible: sessionEligibleCount,
     },
     answerIndexHistogram: answerCounts,
     answerKeyHash,
+    sources: sourceManifest,
   };
   fs.writeFileSync(path.join(BUILD_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2));
 
@@ -592,14 +767,14 @@ async function main(): Promise<void> {
         excludedByPolicy: {
           count: excludedByPolicy,
           sources: excludedSources.map((s) => ({
-            name: s.name,
-            records: perSourceRaw.get(s.name) ?? 0,
+            name: sourceKey(s),
+            records: perSourceRaw.get(sourceKey(s)) ?? 0,
             reason: 'H2 — ground truth withheld upstream; source carries no answer field',
           })),
         },
         rejectionsByCode: Object.fromEntries([...rejectionCounts.entries()].sort((a, b) => b[1] - a[1])),
         flagsByCode: Object.fromEntries([...flagCounts.entries()].sort((a, b) => b[1] - a[1])),
-        duplicates: dupStats,
+        duplicatesBySource: dupStatsBySource,
         sampleRejections: rejections,
       },
       null,
@@ -625,13 +800,13 @@ async function main(): Promise<void> {
     boxed([
       'ETL COMPLETE',
       `corpus.sqlite      ${num(dbBytes)} bytes`,
-      `accepted           ${num(accepted)}`,
+      `accepted           ${num(accepted)}  (medmcqa ${num(sourceAcc.medmcqa.accepted)} / usmle ${num(sourceAcc.usmle.accepted)})`,
       `rejected           ${num(answerableRawCount - accepted)}  (${(rejectionRate * 100).toFixed(4)}%)`,
       `excluded (H2)      ${num(excludedByPolicy)}`,
-      `duplicates tagged  ${num(dupStats.redundant)}`,
-      `H9 conflicts       ${num(dupStats.conflictingGroups)} groups / ${num(dupStats.conflictingRecords)} records`,
+      `duplicates tagged  medmcqa ${num(dupStatsBySource.medmcqa.redundant)} / usmle ${num(dupStatsBySource.usmle.redundant)}`,
+      `H9 conflicts       medmcqa ${num(dupStatsBySource.medmcqa.conflictingGroups)}g / usmle ${num(dupStatsBySource.usmle.conflictingGroups)}g`,
       `session-eligible   ${num(sessionEligibleCount)}`,
-      `copIndexBase       ${copIndexBase}`,
+      `copIndexBase       ${copIndexBase}  (medmcqa only)`,
       `answerKeyHash      ${answerKeyHash}`,
     ])
   );

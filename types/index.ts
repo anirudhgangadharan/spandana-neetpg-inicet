@@ -17,6 +17,17 @@ export type Split = 'train' | 'validation';
 
 export type ChoiceType = 'single' | 'multi';
 
+/**
+ * Which question bank a record originates from. Independent of `subject`
+ * (clinical domain, e.g. "Anatomy") and `split` (train/validation): `source` is
+ * the corpus dimension a session filters on before subject/topic apply at all.
+ *
+ * Deliberately a closed union, not `string` — adding a third source is a
+ * reviewed code change (new discovery directory, new split/answer-resolution
+ * path), never data silently picked up by a directory scan.
+ */
+export type QuestionSource = 'medmcqa' | 'usmle';
+
 export type QuestionFlag =
   /** H4 — an `rt`-token-loss artefact was detected in the stem or options. */
   | 'possible_text_corruption'
@@ -42,6 +53,7 @@ export type QuestionFlag =
 
 export interface Question {
   readonly id: string;
+  readonly source: QuestionSource;
   readonly split: Split;
   readonly stem: string;
   readonly options: readonly [string, string, string, string];
@@ -103,10 +115,31 @@ export interface Rejection {
   readonly detail: string;
 }
 
+export interface BuildManifestCounts {
+  readonly raw: number;
+  readonly accepted: number;
+  readonly rejected: number;
+  readonly duplicates: number;
+  readonly conflictingAnswerGroups: number;
+  readonly sessionEligible: number;
+}
+
+/**
+ * Per-source breakdown. `copIndexBase`/`copDiagnostics` are `null` for any
+ * source without MedMCQA's H1 cop-index-base ambiguity (D-025) — USMLE's
+ * answer field is an unambiguous letter, so there is nothing to diagnose.
+ */
+export interface SourceManifestEntry {
+  readonly counts: BuildManifestCounts;
+  readonly answerIndexHistogram: readonly [number, number, number, number];
+  readonly copIndexBase: (0 | 1) | null;
+  readonly copDiagnostics: BuildManifest['copDiagnostics'] | null;
+}
+
 export interface BuildManifest {
   readonly builtAt: string;
   readonly appVersion: string;
-  /** Resolved empirically in the ETL, never guessed (H1). */
+  /** Resolved empirically in the ETL, never guessed (H1). MedMCQA-specific — see `sources`. */
   readonly copIndexBase: 0 | 1;
   readonly copDiagnostics: {
     readonly rangeMin: number;
@@ -116,17 +149,13 @@ export interface BuildManifest {
     readonly markerAgree0: number;
   };
   readonly sourceFiles: readonly { readonly file: string; readonly bytes: number; readonly sha256: string }[];
-  readonly counts: {
-    readonly raw: number;
-    readonly accepted: number;
-    readonly rejected: number;
-    readonly duplicates: number;
-    readonly conflictingAnswerGroups: number;
-    readonly sessionEligible: number;
-  };
+  /** Global totals across every source. */
+  readonly counts: BuildManifestCounts;
   readonly answerIndexHistogram: readonly [number, number, number, number];
-  /** sha256 over sorted `id:index` pairs. Recomputed at startup and compared (§3.2). */
+  /** sha256 over sorted `id:index` pairs, over every row regardless of source.
+   *  Recomputed at startup and compared (§3.2). */
   readonly answerKeyHash: string;
+  readonly sources: Readonly<Record<QuestionSource, SourceManifestEntry>>;
 }
 
 export interface FacetsFile {
@@ -134,5 +163,6 @@ export interface FacetsFile {
   readonly topicsBySubject: Readonly<Record<string, readonly { readonly name: string; readonly count: number }[]>>;
   readonly flags: readonly { readonly name: QuestionFlag; readonly count: number }[];
   readonly splits: readonly { readonly name: Split; readonly count: number }[];
+  readonly sources: readonly { readonly name: QuestionSource; readonly count: number }[];
   readonly total: number;
 }

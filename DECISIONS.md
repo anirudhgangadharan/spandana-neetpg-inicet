@@ -461,6 +461,283 @@ from middleware, which would allow `'unsafe-inline'` to be dropped.
 
 ---
 
+## D-021 — USMLE (MedQA-USMLE, US 4-option subset) added as a second question source · ACCEPTED
+
+Scope agreed with the user before implementation (full plan at
+`.claude/plans/structured-mapping-balloon.md`): **US English only**, and
+specifically the pre-filtered 4-option files
+(`US/4_options/phrases_no_exclude_{train,dev,test}.jsonl`) — not the top-level
+`US/train.jsonl` etc., which are natively 5-option and out of scope, and not
+the Mainland-China or Taiwan editions (Chinese-language, and in Taiwan's case
+a near-useless category field), which don't serve this app's English
+NEET-PG/INICET audience.
+
+Measured, not assumed: sampled 300 records from the chosen files and confirmed
+100% carry exactly 4 options before committing to the 4-option-only scope —
+this is what let every option-count assumption already baked into the trusted
+core (`AnswerIndex = 0|1|2|3`, `Question.options` as a 4-tuple) and the
+option-rendering UI (`OptionGroup.tsx`) stay completely untouched. Widening
+those to a variable option count was considered and explicitly rejected for
+this pass: it would touch the correctness-critical, 100%-branch-covered,
+CI-grepped trusted core for a data source this app doesn't strictly need to
+support in its native 5-option form.
+
+Build result on the real data: all **12,723** records (10,178 train / 1,272
+dev / 1,273 test) accepted, **zero** rejected, **zero** near-duplicates within
+the source (`DuplicateIndex` stats: 12,723 groups, 0 redundant — a curated
+exam bank has none of MedMCQA's messier-provenance duplication). MedMCQA's own
+numbers were verified byte-identical before and after this work: 186,791
+accepted, same 214-record rejection breakdown, same 1,104 H9 conflict groups,
+same 18,240 H6 duplicates, same `copIndexBase = 1` resolution. The combined
+corpus is 199,514 rows (186,791 + 12,723, arithmetic checked directly against
+the manifest, not assumed).
+
+License note: no `LICENSE`/`README`/citation file accompanied the local
+download. See D-028.
+
+---
+
+## D-022 — `Split` stays exactly `'train' | 'validation'`; USMLE's `test` folds into `validation` · ACCEPTED
+
+USMLE's `test.jsonl` genuinely carries visible `answer_idx` values (confirmed
+by reading it directly) — unlike MedMCQA's `test.json`, which the authors
+withhold entirely (H2) and which is why `Split` was deliberately narrowed to
+two values in the first place (D-015). USMLE's test split is not withheld
+ground truth; it's just another slice of answerable exam questions.
+
+This app has no notion of "held out for model evaluation" — it is a practice
+tool for people, not a training pipeline. To a student, MedMCQA's `dev` and
+USMLE's `dev`/`test` are all simply "more questions with visible answers."
+Rather than add a third `Split` value (which would ripple into
+`lib/core/question.ts`'s `SPLITS` constant, the API's `VALID_SPLITS`,
+`FacetsFile.splits`, and an existing integration-test assertion that the
+global split vocabulary is exactly two-valued), USMLE's three files fold onto
+the existing semantic: `train → 'train'`, `dev`/`test → 'validation'`.
+
+Cost accepted: USMLE's dev/test distinction (a real distinction in the
+original ML benchmark) is not recoverable from the `split` column alone once
+folded — only from the per-source manifest breakdown, which still records
+each raw file's count separately. Verified in
+`tests/integration/corpus.test.ts`: USMLE rows exist in both `train` and
+`validation`, and `validation` count for `source='usmle'` equals exactly
+1,272 + 1,273.
+
+---
+
+## D-023 — USMLE's `meta_info` becomes two literal `subject` values, not a new facet dimension · ACCEPTED
+
+`meta_info` has exactly two values across the whole US set: `"step1"` and
+`"step2&3"` — exam stage, not a clinical subject the way MedMCQA's
+Anatomy/Medicine/Surgery are. Mapped to `subject = 'USMLE Step 1'` /
+`subject = 'USMLE Step 2 & 3'` (an unrecognised third value would fail open to
+a generic `'USMLE'` bucket, never reject the record — same "Unknown" pattern
+as D-008). This reuses 100% of the existing subject/topic filter plumbing
+(`SessionSetup.tsx` checkboxes, `topicsBySubject`, `QuestionFilters.subjects`)
+for free, and the bucket names self-disclose what they are rather than
+pretending to be a peer of MedMCQA's clinical taxonomy.
+
+The mapping itself lives in `lib/constants/sources.ts`, not
+`lib/parser/usmle.ts`, specifically so it's importable from client ('use
+client') UI code — `lib/parser/usmle.ts` pulls in `node:crypto` for id
+synthesis (D-026) and must never end up in a browser bundle.
+
+`topic` is always `null` for USMLE (→ "Uncategorised", an already-designed
+empty state). `choiceType` is always `'single'` — the schema carries no
+`choice_type`-equivalent field at all.
+
+Alternative considered and rejected: a dedicated `exam_stage` column/facet.
+More "correct" modelling for two values isn't worth the added schema and UI
+surface; revisit if USMLE ever grows a third piece of metadata.
+
+---
+
+## D-024 — Standalone parser module, not an extension of `schema.ts`/`validate.ts`/`cop-base.ts` · ACCEPTED
+
+`lib/parser/usmle.ts` is a new, independent file, for two structural reasons:
+
+1. **Shape.** USMLE's options live in a single nested object keyed `"A".."D"`
+   (`{question, options: {A,B,C,D}, answer, answer_idx, meta_info}`), not four
+   sibling top-level fields the way MedMCQA's `opa/opb/opc/opd` are.
+   `lib/parser/schema.ts`'s structural detector inspects top-level object keys
+   only (presence rate, length correlation, enumeration-suffix patterns) and
+   genuinely cannot see into a nested object without a flattening shim. Writing
+   a dedicated ~240-line adapter was cleaner than bolting a shim onto machinery
+   built for a different shape.
+2. **Dedup/corruption scoping.** H6/H9 duplicate and conflicting-answer
+   detection run as **two structurally separate `DuplicateIndex` instances**
+   in `scripts/etl/build.ts` (one per source), not one shared-but-namespaced
+   index — makes it impossible by construction, not merely unlikely, for a
+   MedMCQA question and an unrelated USMLE question to be flagged as
+   duplicates of each other. Verified directly:
+   `tests/integration/corpus.test.ts`'s "dedup/conflict detection never
+   crosses a source boundary" test joins every `duplicate_of` pointer against
+   its target's `source` column and asserts zero cross-source matches.
+   MedMCQA's H4 corruption lexicon (the `rt`-token-loss detector) is similarly
+   never run against USMLE text — that defect is specific to MedMCQA's own
+   provenance pipeline, and Pass A's token-counting loop is guarded to
+   `src.source === 'medmcqa'` accordingly.
+
+Source discovery itself changed to match: `data/raw/<source>/` is now an
+explicit, closed per-source directory map (`scripts/etl/read.ts`'s
+`SOURCE_DIRS`), not a flat glob keyed by filename. The prior design
+(`splitFor(name)` mapping `train`/`dev`/`test` globally by basename) would have
+silently merged a second source's same-named files into the first source's
+splits — confirmed as a real, not hypothetical, risk: the chosen USMLE files
+happen to be named `phrases_no_exclude_train.jsonl` etc. rather than
+`train.jsonl`, but the fix does not depend on that filename luck. A third
+source sharing MedMCQA's or USMLE's file-naming convention today would still
+land in its own bucket, untouched by either.
+
+---
+
+## D-025 — USMLE answer resolution is a standalone letter lookup, not an extension of H1 · ACCEPTED
+
+`answer_idx` is a single letter (`A`-`D`), unambiguous by construction.
+MedMCQA's `cop`-index-base ambiguity (H1) — resolved by three independent
+empirical methods that must agree, because the two published MedMCQA
+distributions disagree about 0- vs 1-based indexing — simply has no equivalent
+here. `resolveUsmleLetter` in `lib/parser/usmle.ts` is a direct table lookup
+(`A→0, B→1, C→2, D→3`, case/whitespace-tolerant, fails closed on anything
+else including the fifth option letter `E` that exists in the 5-option files
+this ETL deliberately doesn't ingest). It shares its result shape
+(`AnswerIndexResult`) with `lib/core/answer-index.ts`'s `tryToAnswerIndex` for
+consistency, but calls into none of `cop-base.ts`'s cross-check machinery —
+building a parallel 3-method empirical resolution here would be solving a
+problem this source doesn't have.
+
+Consequence in the UI: `QuestionCard.tsx`'s "Report this question" payload
+(I5) now branches on `question.source` — MedMCQA reports its `cop`-encoded,
+`copIndexBase`-adjusted answer as before; USMLE reports its native letter.
+This was a real, if quiet, bug caught before shipping: the payload
+unconditionally computed a `copIndexBase`-adjusted number and labelled it
+`"${copIndexBase}-based (cop)"` for every question, which would have reported
+a fabricated fact about a field a USMLE record doesn't have.
+
+---
+
+## D-026 — Deterministic USMLE id synthesis: `usmle-` + a 24-hex-char content hash · ACCEPTED
+
+USMLE's source data has no id field at all. `synthesizeUsmleId` in
+`lib/parser/usmle.ts` hashes (sha256, truncated to 24 hex chars) the raw split
+token (`train`/`dev`/`test` — the label *before* the D-022 fold into `Split`,
+so the id stays stable even if the fold policy changes later) plus the
+sanitised stem, all four options, and the resolved answer letter, each field
+separated by a control character (`String.fromCharCode(1)`, never a literal
+escape in source — see the implementation note in `usmle.ts` about why) so
+field-boundary ambiguity (`stem="ab"+opt="c"` hashing the same as
+`stem="a"+opt="bc"`) can't happen.
+
+Same input always reproduces the same id, so a rebuild from the same source
+files is stable and reproducible. The `usmle-` prefix makes collision with
+MedMCQA's UUID-format ids (`a74dcff7-74d2-...`) structurally impossible — a
+different id *alphabet* entirely, not merely different by convention. A
+byte-for-byte repeat of the same content (same stem, options, and answer)
+collides on this hash and is rejected as `E_DUPLICATE_ID` before H6's
+near-duplicate pass ever runs, which is a reasonable secondary property of the
+scheme rather than its purpose.
+
+`seenIds` is shared across both sources within a given ETL pass (defense in
+depth — the id-alphabet split already makes cross-source collision impossible,
+so sharing the set costs nothing and catches any future surprise for free
+rather than silently allowing it).
+
+---
+
+## D-027 — I4's rejection-rate gate and the §5.3 histogram assertion are evaluated per source · DEVIATION (addition)
+
+At roughly 6% of the blended corpus (12,723 of 199,514), a USMLE-specific
+ingestion bug could clear a blended *global* 2% rejection-rate gate while
+quietly failing within USMLE alone — the small source hides inside the
+average. `scripts/etl/build.ts` now gates I4 **independently per source**
+(both `medmcqa` and `usmle` must each individually clear 2%; the blended
+figure is still computed and logged for continuity, just no longer the sole
+gate).
+
+The §5.3 assertion-4 histogram-band check (10–40% per answer index) is
+specifically a regression guard for H1's off-by-one failure mode — it exists
+to catch a MedMCQA cop-index-base resolution gone wrong. USMLE has no such
+failure mode: its answer is a validated letter with no encoding ambiguity to
+get wrong in the first place. Running MedMCQA's hard-fail gate against USMLE's
+histogram would be testing for a bug class that source cannot exhibit, so
+USMLE's histogram is computed and logged for visibility only, never gated.
+Measured on the real build: USMLE's distribution is markedly more balanced
+than MedMCQA's (A=25.68% B=25.77% C=25.58% D=22.97%, vs MedMCQA's known
+positional bias A=29.36%…D=21.28%, A.4) — consistent with a curated exam bank
+versus MedMCQA's messier aggregation, and would have passed the hard gate
+anyway had it been applied, but that's not something a regression guard should
+rely on.
+
+The manifest's `sources.medmcqa`/`sources.usmle` breakdown (new
+`SourceManifestEntry` type) is what makes the per-source figures inspectable
+after the fact, not just visible in the build log.
+
+---
+
+## D-028 — USMLE licensing: cited, not asserted · ACCEPTED
+
+No `LICENSE`, `README`, or citation file accompanied the local MedQA-USMLE
+download. Unlike MedMCQA's licence situation (D-005's era — two named licences
+to reconcile, Apache-2.0 vs a CC0 mirror), there is nothing local to reconcile
+*from* here at all. Per the user's explicit decision (asked directly before
+this work began): build and deploy, citing the dataset honestly, without
+asserting a specific redistribution licence for it.
+
+`ATTRIBUTION.md` gained a full second `## Dataset` section (citation, bibtex,
+repository link) mirroring MedMCQA's section's structure and tone, but its
+licence subsection states plainly that no licence file was found and none is
+asserted, rather than picking one by inference the way D-005-era MedMCQA
+licensing did. The in-app disclaimer (`components/Disclaimer.tsx`) and its
+persistent footer gained a matching citation. Redistribution risk for the
+USMLE-derived portion of the corpus is the deploying party's to verify — this
+matches the user's explicit instruction and is stated as such in both places.
+
+---
+
+## D-029 — Bug found in browser verification: mixed-source sessions silently returned 100% MedMCQA · DEVIATION (bug fixed)
+
+Caught during the manual browser smoke test the USMLE integration plan
+required before publishing (not by any automated test — this is exactly why
+that step was mandatory rather than optional). Selecting both MedMCQA and
+USMLE as the question bank and starting a session produced a "mixed" session
+whose 20 questions were, every time, 100% MedMCQA.
+
+Cause: `planSession`'s candidate pool (`lib/db/queries.ts`) was built with a
+single `SELECT id FROM questions WHERE source IN (...) ORDER BY rowid LIMIT
+poolSize` query. `rowid` is SQLite's insertion order, which is the ETL's
+processing order (`scripts/etl/build.ts` processes `corpusSources` in
+discovery order — every MedMCQA file before any USMLE file). The two sources
+therefore occupy disjoint, non-interleaved rowid ranges: MedMCQA's ~186,791
+accepted rows all have lower rowids than USMLE's 12,723. A pool of any
+practical size (`poolSize` tops out around 20,000 even for a 500-question exam)
+never reached far enough into rowid space to include a single USMLE row,
+*regardless* of pool size or question count — this was not a probabilistic
+bias that occasionally under-represented USMLE, it was a deterministic,
+100%-of-the-time exclusion.
+
+Fix: when more than one source is selected, `planSession` pools each source
+independently (`listQuestionIds` called once per source with `sources: [x]`,
+each up to the full `basePoolSize`) and concatenates before the existing
+seeded shuffle (`sampleWithoutReplacement`) runs. Single-source sessions are
+untouched — same query, same behaviour, verified via a dedicated regression
+test. Multi-source sessions now draw from a pool that actually contains both.
+
+Verified three ways: (1) a new integration test,
+`tests/integration/session-plan.test.ts`, asserts a mixed 100-question plan
+contains at least one question from each selected source across five
+different seeds — this test would have deterministically failed under the
+prior code, for every seed, not flakily; (2) the live dev server, both before
+the fix (confirmed 100/0 via `/api/questions` grouped by `source`) and after
+(confirmed a 55/45 split for the same request shape); (3) `pnpm verify` full
+suite green afterward (237 tests).
+
+The bug was specific to having two sources with very different volumes and
+strictly sequential insertion order — a single-source deployment, or two
+similarly-sized interleaved sources, would not have exhibited it, which is
+part of why it wasn't anticipated in the original design (D-005's pooling
+rationale predates any notion of a second source).
+
+---
+
 ## D-010 — Repository lives inside a OneDrive-synced, non-ASCII path · OPEN
 
 Working directory is `C:\Users\ganga\OneDrive\문서\NEET MCQ`. Two environmental

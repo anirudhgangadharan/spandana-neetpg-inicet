@@ -15,7 +15,18 @@ import type { Facets } from '@/lib/db/queries';
 import type { StudyMode } from '@/lib/storage/prefs';
 import { Button } from '@/components/ui/primitives';
 import type { SessionConfig } from '@/features/session/store';
+import { SOURCE_LABEL, USMLE_SUBJECT_LABELS } from '@/lib/constants/sources';
+import type { QuestionSource } from '@/types';
 import styles from './filters.module.css';
+
+const ALL_SOURCES: readonly QuestionSource[] = ['medmcqa', 'usmle'];
+const USMLE_SUBJECT_SET = new Set(USMLE_SUBJECT_LABELS);
+
+/** True for a `subject` value that belongs to the USMLE question bank — every
+ *  USMLE row's subject is one of `USMLE_SUBJECT_LABELS` by construction (D-023),
+ *  so this cleanly partitions the (source-unscoped) subject facet without a
+ *  fragile string-prefix guess. */
+const isUsmleSubject = (name: string): boolean => USMLE_SUBJECT_SET.has(name);
 
 export const UNCATEGORISED = '__uncategorised__';
 
@@ -36,12 +47,24 @@ function makeSeed(): string {
 }
 
 export function SessionSetup({ facets, busy, error, onStart }: SessionSetupProps): React.JSX.Element {
+  // Default MedMCQA-only (D-C): a fresh session with no explicit choice must
+  // feel exactly like it did before USMLE existed. USMLE is opt-in.
+  const [sources, setSources] = useState<QuestionSource[]>(['medmcqa']);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [topics, setTopics] = useState<string[]>([]);
   const [count, setCount] = useState<number>(20);
   const [mode, setMode] = useState<StudyMode>('study');
   const [onlyFlagged, setOnlyFlagged] = useState(false);
   const [seed, setSeed] = useState<string>(makeSeed);
+
+  // The subject facet is source-unscoped at the query layer by design (every
+  // USMLE subject value self-discloses what it is, per D-023) — scoped here,
+  // client-side, to whichever question bank(s) are selected.
+  const visibleSubjects = useMemo(() => {
+    const wantsUsmle = sources.includes('usmle');
+    const wantsMedmcqa = sources.includes('medmcqa');
+    return facets.subjects.filter((s) => (isUsmleSubject(s.name) ? wantsUsmle : wantsMedmcqa));
+  }, [facets.subjects, sources]);
 
   const availableTopics = useMemo(() => {
     if (subjects.length === 0) return [];
@@ -56,17 +79,50 @@ export function SessionSetup({ facets, busy, error, onStart }: SessionSetupProps
       .sort((a, b) => b.count - a.count);
   }, [facets.topicsBySubject, subjects]);
 
-  const toggle = (list: string[], value: string, set: (next: string[]) => void): void => {
+  const toggle = <T,>(list: T[], value: T, set: (next: T[]) => void): void => {
     set(list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
   };
 
   const matching = useMemo(() => {
-    if (subjects.length === 0) return facets.sessionEligible;
+    if (subjects.length === 0) {
+      // No subject chosen: "N available" must reflect the source scoping, not
+      // the whole corpus — otherwise the hint lies the moment a source filter
+      // exists (it previously read `facets.sessionEligible` unconditionally).
+      return visibleSubjects.reduce((sum, s) => sum + s.count, 0);
+    }
     return subjects.reduce((sum, s) => sum + (facets.subjects.find((f) => f.name === s)?.count ?? 0), 0);
-  }, [facets.sessionEligible, facets.subjects, subjects]);
+  }, [facets.subjects, subjects, visibleSubjects]);
 
   return (
     <div className={`glass ${styles.sidebar}`}>
+      <div className={styles.group}>
+        <h2 className={styles.groupTitle}>Question bank</h2>
+        <div className={styles.checkList}>
+          {ALL_SOURCES.map((s) => {
+            const facet = facets.sources.find((f) => f.name === s);
+            return (
+              <label key={s} className={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={sources.includes(s)}
+                  onChange={() => {
+                    // At least one source must always be selected — an empty
+                    // set would silently mean "every source" at the query
+                    // layer, the opposite of what an unchecked box implies.
+                    if (sources.length === 1 && sources[0] === s) return;
+                    toggle(sources, s, setSources);
+                    setSubjects([]);
+                    setTopics([]);
+                  }}
+                />
+                <span className={styles.checkLabel}>{SOURCE_LABEL[s]}</span>
+                <span className={styles.count}>{(facet?.count ?? 0).toLocaleString('en-IN')}</span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
       <div className={styles.group}>
         <h2 className={styles.groupTitle}>Mode</h2>
         <div className={styles.modeToggle} role="radiogroup" aria-label="Practice mode">
@@ -114,7 +170,7 @@ export function SessionSetup({ facets, busy, error, onStart }: SessionSetupProps
       <div className={styles.group}>
         <h2 className={styles.groupTitle}>Subject</h2>
         <div className={styles.checkList}>
-          {facets.subjects.map((s) => (
+          {visibleSubjects.map((s) => (
             <label key={s.name} className={styles.checkRow}>
               <input
                 type="checkbox"
@@ -206,6 +262,7 @@ export function SessionSetup({ facets, busy, error, onStart }: SessionSetupProps
           onStart({
             seed: seed.trim(),
             count,
+            sources,
             subjects,
             topics,
             onlyFlagged,

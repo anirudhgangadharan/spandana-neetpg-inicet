@@ -9,7 +9,7 @@
  * The client never receives more than one window of questions (§3.1).
  */
 
-import type { Question, QuestionFlag, Split } from '@/types';
+import type { Question, QuestionFlag, QuestionSource, Split } from '@/types';
 import { questionFromRow, type QuestionRow } from '@/lib/core/question';
 import { mulberry32, sampleWithoutReplacement, seedFromString } from '@/lib/utils/rng';
 import { getDb } from './client';
@@ -22,11 +22,19 @@ export const MAX_SEARCH_RESULTS = 50;
 export const MAX_SESSION_SIZE = 500;
 
 const SELECT_COLUMNS = `
-  id, split, stem, opt_a, opt_b, opt_c, opt_d, answer_index,
+  id, source, split, stem, opt_a, opt_b, opt_c, opt_d, answer_index,
   explanation, subject, topic, choice_type, flags, duplicate_of, session_eligible
 `;
 
 export interface QuestionFilters {
+  /**
+   * Which question bank(s) to draw from. Absence at the API layer defaults to
+   * `['medmcqa']` (see `app/api/questions/route.ts`'s `filtersFromParams`) so
+   * every existing caller keeps seeing exactly what it saw before USMLE
+   * existed — but `buildWhere` itself applies no default, since the query
+   * layer should not silently assume anything about intent.
+   */
+  readonly sources?: readonly QuestionSource[];
   readonly subjects?: readonly string[];
   /** `'__uncategorised__'` selects rows whose topic is NULL (H5). */
   readonly topics?: readonly string[];
@@ -47,6 +55,12 @@ interface WhereClause {
 function buildWhere(filters: QuestionFilters): WhereClause {
   const clauses: string[] = [];
   const params: (string | number)[] = [];
+
+  const sources = filters.sources ?? [];
+  if (sources.length > 0) {
+    clauses.push(`source IN (${sources.map(() => '?').join(',')})`);
+    params.push(...sources);
+  }
 
   const subjects = filters.subjects ?? [];
   if (subjects.length > 0) {
@@ -241,6 +255,7 @@ export interface Facets {
   readonly subjects: readonly { readonly name: string; readonly count: number }[];
   readonly topicsBySubject: Readonly<Record<string, readonly { readonly name: string; readonly count: number }[]>>;
   readonly flags: readonly { readonly name: QuestionFlag; readonly count: number }[];
+  readonly sources: readonly { readonly name: QuestionSource; readonly count: number }[];
   readonly total: number;
   readonly sessionEligible: number;
 }
@@ -277,6 +292,10 @@ export function getFacets(): Facets {
     for (const f of parsed) flagCounts.set(f, (flagCounts.get(f) ?? 0) + 1);
   }
 
+  const sources = db
+    .prepare('SELECT source AS name, COUNT(*) AS count FROM questions GROUP BY source ORDER BY count DESC')
+    .all() as { name: QuestionSource; count: number }[];
+
   const total = (db.prepare('SELECT COUNT(*) AS n FROM questions').get() as { n: number }).n;
   const eligible = (
     db.prepare('SELECT COUNT(*) AS n FROM questions WHERE session_eligible = 1').get() as { n: number }
@@ -286,6 +305,7 @@ export function getFacets(): Facets {
     subjects,
     topicsBySubject,
     flags: [...flagCounts.entries()].sort((a, b) => b[1] - a[1]).map(([name, count]) => ({ name, count })),
+    sources,
     total,
     sessionEligible: eligible,
   };
@@ -323,13 +343,27 @@ export interface SessionPlan {
 export function planSession(request: SessionPlanRequest): SessionPlan {
   const count = Math.min(Math.max(1, request.count), MAX_SESSION_SIZE);
   const available = countQuestions(request.filters);
+  const basePoolSize = Math.max(count * 40, 2000);
 
   // Draw from a bounded candidate pool rather than the whole corpus: for a
   // 20-question session there is no reason to shuffle 167,000 ids. The pool is
   // large enough that the sample is not visibly biased toward low rowids, and
   // it is taken deterministically so the plan stays reproducible.
-  const poolSize = Math.min(available, Math.max(count * 40, 2000));
-  const pool = listQuestionIds(request.filters, poolSize);
+  //
+  // With more than one source selected, the pool must be gathered PER SOURCE
+  // rather than with one flat `ORDER BY rowid LIMIT`. rowid is assignment
+  // order from the ETL, and different sources occupy disjoint, non-interleaved
+  // rowid ranges (every MedMCQA row was inserted before any USMLE row) — a
+  // single rowid-ordered pool of any practical size is entirely the
+  // lowest-rowid source, so a session with e.g. both MedMCQA and USMLE
+  // selected would silently return 100% MedMCQA regardless of pool size or
+  // question count. Pooling per source and concatenating before the seeded
+  // shuffle is what actually gives every selected source a chance to appear.
+  const sources = request.filters.sources ?? [];
+  const pool =
+    sources.length > 1
+      ? sources.flatMap((source) => listQuestionIds({ ...request.filters, sources: [source] }, basePoolSize))
+      : listQuestionIds(request.filters, Math.min(available, basePoolSize));
 
   const numericSeed = seedFromString(request.seed);
   const ids =

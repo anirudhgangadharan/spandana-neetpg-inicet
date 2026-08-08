@@ -12,6 +12,7 @@ import { useCallback, useMemo, useState } from 'react';
 import type { AnswerIndex, Question, Verdict } from '@/types';
 import { correctOptionPosition, correctOptionText } from '@/lib/core/verdict';
 import { Badge, IconButton } from '@/components/ui/primitives';
+import { SOURCE_LABEL } from '@/lib/constants/sources';
 import { FLAG_PRESENTATION, flagsForCard, flagsForDetail } from './flags';
 import { OptionGroup } from './OptionGroup';
 import styles from './question.module.css';
@@ -73,16 +74,25 @@ export function QuestionCard({
 
   /**
    * I5 — "Report this question" copies enough to trace the item back to a
-   * specific dataset record. `datasetAnswer` is expressed in the source's own
-   * 1-based encoding so it can be compared against the raw JSON directly.
+   * specific dataset record.
+   *
+   * `datasetAnswer`/`datasetAnswerEncoding` are branched by `question.source`:
+   * MedMCQA's answer is encoded as `cop`, an integer offset by `copIndexBase`
+   * (H1) — expressing it that way lets the report be compared against the raw
+   * JSON directly. USMLE has no `cop` and no index-base ambiguity at all; its
+   * native encoding is the letter itself (`answer_idx`), so reporting a
+   * `copIndexBase`-adjusted number for a USMLE question would be reporting a
+   * fact about a field that record doesn't have (D-025).
    */
   const handleReport = useCallback(() => {
+    const letter = LETTERS[correctOptionPosition(question)];
     const payload = {
       id: question.id,
+      source: question.source,
       split: question.split,
-      datasetAnswer: correctOptionPosition(question) + copIndexBase,
-      datasetAnswerEncoding: `${copIndexBase}-based (cop)`,
-      resolvedAnswerLetter: LETTERS[correctOptionPosition(question)],
+      datasetAnswer: question.source === 'medmcqa' ? correctOptionPosition(question) + copIndexBase : letter,
+      datasetAnswerEncoding: question.source === 'medmcqa' ? `${copIndexBase}-based (cop)` : 'letter (answer_idx)',
+      resolvedAnswerLetter: letter,
       selectedIndex: selection,
       selectedLetter: selection === null ? null : LETTERS[selection],
       flags: question.flags,
@@ -200,7 +210,8 @@ export function QuestionCard({
       <footer className={styles.provenance}>
         {/* I5 — every card exposes its dataset id and source split. */}
         <span>
-          Source: MedMCQA <code className={styles.provenanceId}>{question.id}</code> ({question.split})
+          Source: {SOURCE_LABEL[question.source]} <code className={styles.provenanceId}>{question.id}</code> (
+          {question.split})
         </span>
         <button
           type="button"
@@ -217,6 +228,9 @@ export function QuestionCard({
 
       {showDetail ? (
         <div className={styles.explanationEmpty} style={{ flexDirection: 'column', gap: 'var(--space-2)' }}>
+          <div>
+            <strong>Question bank:</strong> {SOURCE_LABEL[question.source]}
+          </div>
           <div>
             <strong>Dataset id:</strong> <code className={styles.provenanceId}>{question.id}</code>
           </div>

@@ -20,7 +20,7 @@
  */
 
 import { create } from 'zustand';
-import type { AnswerIndex, AttemptRecord, Question, Verdict } from '@/types';
+import type { AnswerIndex, AttemptRecord, Question, QuestionSource, Verdict } from '@/types';
 import { evaluate } from '@/lib/core/verdict';
 import {
   flushNow,
@@ -46,6 +46,9 @@ export const FETCH_CHUNK = 25;
 export interface SessionConfig {
   readonly seed: string;
   readonly count: number;
+  /** Which question bank(s) to draw from (D-C). Empty/omitted is never sent to
+   *  the API as "everything" — `SessionSetup` always supplies at least one. */
+  readonly sources: readonly QuestionSource[];
   readonly subjects: readonly string[];
   readonly topics: readonly string[];
   readonly onlyFlagged: boolean;
@@ -188,6 +191,11 @@ function buildQueryString(config: SessionConfig): URLSearchParams {
   const params = new URLSearchParams();
   params.set('seed', config.seed);
   params.set('count', String(config.count));
+  // Always sent explicitly, even when it's just `['medmcqa']`: presence of the
+  // param is what the API's `filtersFromParams` uses to distinguish "the user
+  // chose MedMCQA-only" from "no source specified, apply the default" — both
+  // currently resolve to the same set, but only one is an explicit choice.
+  for (const s of config.sources) params.append('source', s);
   for (const s of config.subjects) params.append('subject', s);
   for (const t of config.topics) params.append('topic', t);
   if (config.onlyFlagged) params.set('flagged', '1');

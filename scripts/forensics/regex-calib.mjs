@@ -13,7 +13,7 @@ const CANDIDATES = {
 };
 
 const rl = readline.createInterface({
-  input: fs.createReadStream('data/raw/train.json', { encoding: 'utf8' }),
+  input: fs.createReadStream('data/raw/medmcqa/train.json', { encoding: 'utf8' }),
   crlfDelay: Infinity,
 });
 

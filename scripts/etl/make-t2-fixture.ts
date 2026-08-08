@@ -29,7 +29,7 @@ import { toPlainText } from '@/lib/utils/sanitise';
 import { detectFormat, streamRecords } from './read';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const SOURCE = path.join(ROOT, 'data', 'raw', 'train.json');
+const SOURCE = path.join(ROOT, 'data', 'raw', 'medmcqa', 'train.json');
 const OUT = path.join(ROOT, 'tests', 'fixtures', 't2-answer-oracle.json');
 const TARGET = 1000;
 /** Take every Nth qualifying record so the sample spans the whole file. */

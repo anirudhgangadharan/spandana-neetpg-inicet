@@ -2,6 +2,11 @@
 /data/raw/
 # Build artefacts from the ETL — regenerable via `pnpm data:build`
 /data/build/
+# The original downloaded MedQA-USMLE archive (200+ MB: three countries'
+# question banks plus reference textbooks). Only the small 4-option US subset
+# actually used gets copied into /data/raw/usmle/ (also git-ignored, above).
+# This directory is never the ETL's input and must never be committed.
+/USMLE/
 # Phase 0 forensics output (regenerable via `pnpm data:forensics`)
 /reports/*.json
 
