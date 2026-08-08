@@ -1,0 +1,111 @@
+/* Login page. Reuses the app's existing tokens/.card — no new visual system. */
+
+.wrap {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+
+.panel {
+  width: 100%;
+  max-width: 380px;
+  padding: var(--space-8) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  text-align: center;
+}
+
+.title {
+  font-size: var(--text-title);
+  line-height: var(--leading-title);
+}
+
+.subtitle {
+  font-size: var(--text-callout);
+  line-height: var(--leading-callout);
+  color: var(--text-secondary);
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1 1 auto;
+  height: 1px;
+  background: var(--hairline);
+}
+
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  border: 1px solid var(--hairline);
+}
+
+.tab {
+  flex: 1 1 0;
+  min-height: 38px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-callout);
+  color: var(--text-secondary);
+  transition:
+    background-color var(--duration-micro) var(--ease-standard),
+    color var(--duration-micro) var(--ease-standard);
+}
+
+.tabActive {
+  background: var(--surface-solid);
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+  box-shadow: var(--shadow-chrome);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.label {
+  font-size: var(--text-callout);
+  color: var(--text-secondary);
+}
+
+.input {
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hairline);
+  background: var(--surface-solid);
+  color: var(--text-primary);
+  font-size: var(--text-callout);
+  width: 100%;
+}
+
+.error {
+  font-size: var(--text-callout);
+  color: var(--incorrect);
+}

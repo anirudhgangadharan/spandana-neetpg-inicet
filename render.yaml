@@ -9,3 +9,16 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Accounts plan — values are set in the Render dashboard, never here.
+      # middleware.ts imports the Neon client on every request, so a missing
+      # DATABASE_URL breaks the whole site, not just sign-in.
+      - key: DATABASE_URL
+        sync: false
+      - key: AUTH_SECRET
+        sync: false
+      - key: AUTH_URL
+        sync: false
+      - key: AUTH_GOOGLE_ID
+        sync: false
+      - key: AUTH_GOOGLE_SECRET
+        sync: false

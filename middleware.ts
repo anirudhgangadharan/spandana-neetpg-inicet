@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { auth } from '@/auth';
 
 /**
  * Abuse protection for a publicly-linkable deployment.
@@ -56,36 +57,46 @@ function rateLimit(key: string, limit: number, now: number): { allowed: boolean;
   return { allowed: true, retryAfter: 0 };
 }
 
-export function middleware(request: NextRequest): NextResponse {
+/**
+ * Two independent concerns share this one file because Next.js allows only a
+ * single middleware:
+ *
+ *  - Abuse protection (D-018, above) — unchanged, still per-IP, still scoped
+ *    to /api/*.
+ *  - The accounts-plan login gate — page routes require a session; API
+ *    routes already enforce their own auth server-side (see the `auth()`
+ *    check at the top of every app/api/*\/route.ts handler added for the
+ *    accounts plan), so they're covered by the rate limiter here instead of
+ *    a redirect, which wouldn't make sense for a fetch() caller anyway.
+ */
+export default auth((request) => {
   const { pathname } = request.nextUrl;
 
-  // Only meter the data endpoints; static assets and the shell are cheap.
-  if (!pathname.startsWith('/api/')) return NextResponse.next();
+  if (pathname.startsWith('/api/')) {
+    const isSearch = pathname.startsWith('/api/search');
+    const limit = isSearch ? LIMIT_SEARCH : LIMIT_DEFAULT;
+    const { allowed, retryAfter } = rateLimit(`${clientKey(request)}:${isSearch ? 's' : 'a'}`, limit, Date.now());
 
-  const isSearch = pathname.startsWith('/api/search');
-  const limit = isSearch ? LIMIT_SEARCH : LIMIT_DEFAULT;
-  const { allowed, retryAfter } = rateLimit(
-    `${clientKey(request)}:${isSearch ? 's' : 'a'}`,
-    limit,
-    Date.now()
-  );
-
-  if (!allowed) {
-    return NextResponse.json(
-      {
-        error: 'rate_limited',
-        message: 'Too many requests. Slow down and try again shortly.',
-      },
-      {
-        status: 429,
-        headers: { 'Retry-After': String(retryAfter), 'Cache-Control': 'no-store' },
-      }
-    );
+    if (!allowed) {
+      return NextResponse.json(
+        { error: 'rate_limited', message: 'Too many requests. Slow down and try again shortly.' },
+        { status: 429, headers: { 'Retry-After': String(retryAfter), 'Cache-Control': 'no-store' } }
+      );
+    }
+    return NextResponse.next();
   }
 
+  if (!request.auth?.user) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
   return NextResponse.next();
-}
+});
 
 export const config = {
-  matcher: ['/api/:path*'],
+  // Everything except the auth API itself (or signing in would redirect-
+  // loop — this also covers the credentials-signup route, which lives at
+  // /api/auth/signup), /login, and static assets. /api/health and every
+  // other /api/* route stay in scope for the rate limiter above, matching
+  // the original D-018 behaviour.
+  matcher: ['/((?!api/auth|login|_next/static|_next/image|favicon.ico).*)'],
 };

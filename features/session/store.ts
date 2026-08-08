@@ -37,6 +37,14 @@ import {
   type Preferences,
   type StudyMode,
 } from '@/lib/storage/prefs';
+import {
+  endRemoteSession,
+  importLocalProgressOnce,
+  mergeWithRemote,
+  pullSync,
+  setSyncSessionId,
+  startRemoteSession,
+} from '@/lib/storage/sync';
 
 /** §3.1 caps a window at 200; hold at most that many client-side. */
 export const MAX_CACHED_QUESTIONS = 200;
@@ -64,6 +72,10 @@ interface PersistedSession {
   readonly startedAt: number;
   readonly revealed: readonly string[];
   readonly submittedPaper: boolean;
+  /** Server-side `sessions` row id (accounts plan) — carried across a
+   *  refresh so the eventual endSession()/submitPaper() PATCH closes the
+   *  SAME row that startSession() opened, not a fresh one. */
+  readonly sessionId: string | null;
 }
 
 export interface SessionStore {
@@ -76,6 +88,10 @@ export interface SessionStore {
   revealed: ReadonlySet<string>;
   /** Exam mode: true once the whole paper has been submitted. */
   submittedPaper: boolean;
+  /** Server-side `sessions` row id, for drop-off analytics. Null when no
+   *  session is active, or when the id couldn't be minted (never blocks
+   *  practice — see startRemoteSession). */
+  sessionId: string | null;
 
   /** The user's current, unsubmitted choice for the question on screen. */
   selection: AnswerIndex | null;
@@ -142,6 +158,7 @@ function readPersistedSession(): PersistedSession | null {
         ? (v['revealed'] as unknown[]).filter((i): i is string => typeof i === 'string')
         : [],
       submittedPaper: v['submittedPaper'] === true,
+      sessionId: typeof v['sessionId'] === 'string' ? v['sessionId'] : null,
     };
   } catch {
     return null;
@@ -158,6 +175,7 @@ function writePersistedSession(state: SessionStore): void {
       startedAt: state.startedAt,
       revealed: [...state.revealed],
       submittedPaper: state.submittedPaper,
+      sessionId: state.sessionId,
     };
     sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload));
   } catch {
@@ -213,6 +231,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   startedAt: 0,
   revealed: new Set<string>(),
   submittedPaper: false,
+  sessionId: null,
   selection: null,
   questionStartedAt: 0,
   questions: new Map<string, Question>(),
@@ -228,8 +247,24 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (get().hydrated) return;
     const prefs = loadPreferences();
     set({ prefs });
-    const [attempts, bookmarks] = await Promise.all([loadAllAttempts(), loadBookmarks()]);
-    set({ attempts, bookmarks, hydrated: true });
+    const [localAttempts, localBookmarks] = await Promise.all([loadAllAttempts(), loadBookmarks()]);
+
+    // Pull the account's server-side view and merge it in — remote wins per
+    // question on conflict, since it reflects every device this account has
+    // used, not just this one. A failed pull (offline, cold start) just
+    // means we proceed with local-only state; nothing here is fatal.
+    const remote = await pullSync();
+    const merged =
+      remote === null
+        ? { attempts: localAttempts, bookmarks: localBookmarks }
+        : mergeWithRemote(localAttempts, localBookmarks, remote);
+
+    set({ attempts: merged.attempts, bookmarks: merged.bookmarks, hydrated: true });
+
+    // One-time upload of whatever was local-only before this browser ever
+    // synced (e.g. history from before accounts existed). Uses the
+    // PRE-merge local state deliberately — that's what "local-only" means.
+    void importLocalProgressOnce(localAttempts, localBookmarks);
 
     if (typeof window !== 'undefined') {
       // A refresh must not lose the last answer (§16: persistence survives reload).
@@ -246,6 +281,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         throw new Error(body?.message ?? `Could not plan a session (HTTP ${res.status}).`);
       }
       const plan = (await res.json()) as { ids: string[]; seed: string };
+      const sessionId = crypto.randomUUID();
       set({
         config,
         ids: plan.ids,
@@ -254,11 +290,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         questionStartedAt: Date.now(),
         revealed: new Set<string>(),
         submittedPaper: false,
+        sessionId,
         selection: null,
         questions: new Map<string, Question>(),
         status: 'ready',
       });
       writePersistedSession(get());
+      setSyncSessionId(sessionId);
+      void startRemoteSession({
+        sessionId,
+        sources: config.sources,
+        subjects: config.subjects,
+        topics: config.topics,
+        mode: config.mode,
+        plannedCount: plan.ids.length,
+      });
       await get().ensureWindow();
     } catch (err) {
       set({ status: 'error', error: err instanceof Error ? err.message : String(err) });
@@ -276,21 +322,27 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       questionStartedAt: Date.now(),
       revealed: new Set(persisted.revealed),
       submittedPaper: persisted.submittedPaper,
+      sessionId: persisted.sessionId,
       selection: null,
       status: 'ready',
     });
+    setSyncSessionId(persisted.sessionId);
     await get().ensureWindow();
     return true;
   },
 
   endSession() {
     if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    const { sessionId, submittedPaper } = get();
+    if (sessionId !== null) void endRemoteSession(sessionId, submittedPaper);
+    setSyncSessionId(null);
     set({
       config: null,
       ids: [],
       index: 0,
       revealed: new Set<string>(),
       submittedPaper: false,
+      sessionId: null,
       selection: null,
       questions: new Map<string, Question>(),
       status: 'idle',
@@ -396,6 +448,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (state.config?.mode !== 'exam') return;
     set({ submittedPaper: true, revealed: new Set(state.ids) });
     writePersistedSession(get());
+    if (state.sessionId !== null) void endRemoteSession(state.sessionId, true);
+    setSyncSessionId(null);
   },
 
   toggleBookmark(questionId) {

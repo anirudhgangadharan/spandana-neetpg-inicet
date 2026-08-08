@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { Providers } from './providers';
 
 export const metadata: Metadata = {
   title: 'MedMCQA Practice',
@@ -32,7 +33,7 @@ export default function RootLayout({
         <a className="skip-link" href="#main">
           Skip to the current question
         </a>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

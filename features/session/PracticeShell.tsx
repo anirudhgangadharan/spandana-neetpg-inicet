@@ -19,6 +19,7 @@ import { SessionSetup } from '@/components/filters/SessionSetup';
 import { SearchField } from '@/components/filters/SearchField';
 import { Button, ProgressBar, uiStyles } from '@/components/ui/primitives';
 import { DisclaimerGate, DisclaimerFooter } from '@/components/Disclaimer';
+import { AccountMenu } from '@/components/auth/AccountMenu';
 import { SHORTCUT_HELP, useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { getStorageHealth, summariseProgress, useSessionStore } from './store';
 import styles from './practice.module.css';
@@ -52,6 +53,25 @@ export function PracticeShell({ facets, copIndexBase, appVersion }: PracticeShel
     const health = getStorageHealth();
     if (!health.writable && health.message !== null) setStorageWarning(health.message);
   }, [store.attempts]);
+
+  // A bookmark clicked on /insights lands here as /?review=<id> — open it
+  // through the exact same review path search results already use, rather
+  // than building a second question-detail view.
+  useEffect(() => {
+    const reviewId = new URLSearchParams(window.location.search).get('review');
+    if (reviewId === null) return;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/questions?ids=${encodeURIComponent(reviewId)}`);
+        if (!res.ok) return;
+        const body = (await res.json()) as { questions: Question[] };
+        if (body.questions[0] !== undefined) setReviewQuestion(body.questions[0]);
+      } finally {
+        window.history.replaceState(null, '', '/');
+      }
+    })();
+    // Only ever consult the URL as it was at mount.
+  }, []);
 
   const question = store.currentQuestion();
   const currentId = store.ids[store.index];
@@ -90,6 +110,7 @@ export function PracticeShell({ facets, copIndexBase, appVersion }: PracticeShel
 
       <div className={styles.layout}>
         <aside className={styles.sidebar} aria-label="Session setup and search">
+          <AccountMenu />
           {inSession ? (
             <div className={`glass ${styles.panel}`}>
               <div className={styles.sessionLine}>

@@ -10,46 +10,17 @@
  * it finds (T5).
  */
 
-import type { AttemptRecord, Verdict } from '@/types';
-import { isAnswerIndex } from '@/lib/core/answer-index';
+import type { AttemptRecord } from '@/types';
 import { getStorage, isQuotaError, type BookmarkRecord } from './db';
-
-const VERDICTS: readonly string[] = ['correct', 'incorrect', 'unattempted', 'skipped'];
+import { pushSync } from './sync';
 
 /**
- * Narrow an unknown value to an AttemptRecord, or return null.
- *
- * Note what is NOT accepted: any extra properties on the stored object are
- * dropped rather than spread through, so an injected `answerIndex` field cannot
- * ride along into application state (I3, T5).
+ * Re-exported from lib/core/ so the client write path and the server's
+ * /api/sync route validate incoming records with the exact same rules — see
+ * that file for the actual logic.
  */
-export function parseAttemptRecord(value: unknown): AttemptRecord | null {
-  if (typeof value !== 'object' || value === null) return null;
-  const v = value as Record<string, unknown>;
-
-  if (typeof v['questionId'] !== 'string' || v['questionId'].length === 0) return null;
-
-  const selected = v['selectedIndex'];
-  if (selected !== null && !isAnswerIndex(selected)) return null;
-
-  if (typeof v['verdict'] !== 'string' || !VERDICTS.includes(v['verdict'])) return null;
-
-  const attemptedAt = v['attemptedAt'];
-  if (typeof attemptedAt !== 'number' || !Number.isFinite(attemptedAt) || attemptedAt < 0) return null;
-
-  const durationMs = v['durationMs'];
-  if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs < 0) return null;
-
-  // Rebuilt field by field: unknown keys are discarded, not carried over.
-  return {
-    questionId: v['questionId'],
-    selectedIndex: selected === null ? null : selected,
-    verdict: v['verdict'] as Verdict,
-    attemptedAt,
-    durationMs,
-    bookmarked: v['bookmarked'] === true,
-  };
-}
+import { parseAttemptRecord } from '@/lib/core/attempt-record';
+export { parseAttemptRecord };
 
 export interface StorageHealth {
   readonly writable: boolean;
@@ -160,7 +131,17 @@ async function flush(): Promise<void> {
       degrade('Could not save progress; continuing in session-only mode.', false);
     }
     console.warn(err);
+    return;
   }
+
+  // Mirror the same batch to the server. IndexedDB already has it, so a
+  // failure here (offline, expired session) is not user-visible — the next
+  // successful flush, or the next hydrate's pull, reconciles it.
+  await pushSync({
+    attempts: attempts.length > 0 ? attempts : undefined,
+    bookmarkPuts: bookmarkPuts.length > 0 ? bookmarkPuts.map((b) => b.questionId) : undefined,
+    bookmarkDeletes: bookmarkDeletes.length > 0 ? bookmarkDeletes : undefined,
+  });
 }
 
 function scheduleFlush(): void {
