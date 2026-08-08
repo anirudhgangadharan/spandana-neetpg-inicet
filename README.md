@@ -1,15 +1,3 @@
----
-title: MedMCQA Practice
-emoji: 🩺
-colorFrom: blue
-colorTo: indigo
-sdk: docker
-app_port: 3000
-pinned: false
-license: apache-2.0
-short_description: AIIMS/NEET-PG and USMLE practice over MedMCQA + MedQA-USMLE
----
-
 # MedMCQA Practice
 
 Practice AIIMS/NEET-PG style questions from
