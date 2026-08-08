@@ -2,7 +2,7 @@
 
 .card {
   position: relative;
-  padding: var(--space-6);
+  padding: var(--space-8) var(--space-8) var(--space-6);
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
@@ -27,7 +27,7 @@
   flex: 1 1 auto;
 }
 
-/* ---- stem --------------------------------------------------------------- */
+/* ---- stem: the visual hero, with room to breathe --------------------- */
 .stem {
   font-size: var(--text-body);
   line-height: var(--leading-body);
@@ -35,75 +35,97 @@
   color: var(--text-primary);
   /* Never below 15px on any viewport (§9.2); 17px is the floor here. */
   text-wrap: pretty;
+  max-width: 62ch;
 }
 
 @media (min-width: 900px) {
   .stem {
-    font-size: 19px;
-    line-height: 28px;
+    font-size: 22px;
+    line-height: 32px;
+    letter-spacing: -0.006em;
+    margin-block: var(--space-2);
   }
 }
 
-/* ---- options ------------------------------------------------------------ */
+/* ---- options: quiet, selectable rows — not boxed buttons -------------- */
 .optionList {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  border-top: 1px solid var(--hairline);
 }
 
 .option {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-3);
   width: 100%;
   min-height: var(--option-min-height);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
   text-align: left;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-md);
-  background: var(--surface-sunken);
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  background: transparent;
   color: var(--text-primary);
   transition:
     background-color var(--duration-micro) var(--ease-standard),
-    border-color var(--duration-micro) var(--ease-standard),
-    box-shadow var(--duration-micro) var(--ease-standard),
-    transform var(--duration-micro) var(--ease-standard),
     opacity var(--duration-standard) var(--ease-standard);
+}
+
+/* A quiet accent bar on the leading edge carries state — never a full
+   colour fill (§9.3, §13.10). Transparent until a state claims it. */
+.option::before {
+  content: '';
+  position: absolute;
+  inset-block: var(--space-2);
+  inset-inline-start: 0;
+  width: 2px;
+  border-radius: var(--radius-full);
+  background: transparent;
+  transition: background-color var(--duration-micro) var(--ease-standard);
+}
+
+.option:last-child {
+  border-bottom: none;
 }
 
 .option:hover:not(:disabled) {
   background: var(--surface-hover);
-  transform: scale(1.01);
 }
 
 .option:active:not(:disabled) {
-  transform: scale(0.995);
+  background: var(--surface-sunken);
 }
 
-/* Selected: accent border and a soft glow. No scale jump (§9.3). */
+/* Selected: a slim accent bar and a whisper of tint. No glow, no jump. */
 .option[data-state='selected'] {
-  border-color: var(--accent);
   background: var(--accent-soft);
-  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-.option[data-state='selected']:hover {
-  transform: none;
+.option[data-state='selected']::before {
+  background: var(--accent);
 }
 
 .option[data-state='correct'] {
-  border-color: var(--correct-border);
   background: var(--correct-soft);
 }
 
+.option[data-state='correct']::before {
+  background: var(--correct);
+}
+
 .option[data-state='incorrect'] {
-  border-color: var(--incorrect-border);
   background: var(--incorrect-soft);
+}
+
+.option[data-state='incorrect']::before {
+  background: var(--incorrect);
 }
 
 /* Others after submit: dimmed, not hidden (§9.3). */
 .option[data-state='dimmed'] {
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
 .option:disabled {
@@ -114,14 +136,17 @@
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: var(--radius-full);
-  background: var(--surface-solid);
+  background: var(--surface-sunken);
   border: 1px solid var(--hairline);
   font-size: var(--text-caption);
   font-weight: var(--weight-semibold);
   color: var(--text-secondary);
+  transition:
+    background-color var(--duration-micro) var(--ease-standard),
+    color var(--duration-micro) var(--ease-standard);
 }
 
 .option[data-state='selected'] .optionLetter {
@@ -151,8 +176,8 @@
 /* Colour is never the sole carrier of the verdict — always an icon too (§10). */
 .optionGlyph {
   flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .glyphCorrect {
@@ -163,35 +188,40 @@
   color: var(--incorrect);
 }
 
-/* ---- verdict ------------------------------------------------------------ */
+/* ---- verdict: a slim, quiet line — never a coloured block ------------- */
 .verdict {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--hairline);
+  flex-direction: column;
+  gap: 2px;
+  padding-inline-start: var(--space-4);
+  border-inline-start: 2px solid var(--hairline);
   animation: reveal var(--duration-standard) var(--ease-standard);
 }
 
 .verdictCorrect {
-  background: var(--correct-soft);
-  border-color: var(--correct-border);
+  border-inline-start-color: var(--correct-border);
 }
 
 .verdictIncorrect {
-  background: var(--incorrect-soft);
-  border-color: var(--incorrect-border);
+  border-inline-start-color: var(--incorrect-border);
 }
 
 .verdictSkipped {
-  background: var(--surface-sunken);
+  border-inline-start-color: var(--hairline-strong);
 }
 
 .verdictTitle {
   font-size: var(--text-callout);
   line-height: var(--leading-callout);
   font-weight: var(--weight-semibold);
+}
+
+.verdictCorrect .verdictTitle {
+  color: var(--correct);
+}
+
+.verdictIncorrect .verdictTitle {
+  color: var(--incorrect);
 }
 
 .verdictBody {
@@ -203,9 +233,11 @@
 @keyframes reveal {
   from {
     opacity: 0;
+    transform: translateY(-2px);
   }
   to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -272,17 +304,20 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-1);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--hairline);
-  color: var(--text-secondary);
+  border: none;
+  color: var(--text-tertiary);
   font-size: var(--text-caption);
   background: transparent;
-  transition: background-color var(--duration-micro) var(--ease-standard);
+  text-decoration: underline;
+  text-decoration-color: var(--hairline-strong);
+  text-underline-offset: 3px;
+  transition: color var(--duration-micro) var(--ease-standard);
 }
 
 .reportButton:hover {
-  background: var(--surface-hover);
+  color: var(--text-secondary);
 }
 
 .skeleton {

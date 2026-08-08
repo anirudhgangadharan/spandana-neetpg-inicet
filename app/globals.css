@@ -33,21 +33,16 @@ body {
 }
 
 /**
- * The gradient field. This is the layer that carries translucency; the question
- * card sits on top of it as a near-opaque surface (§9.1).
- *
- * `position: fixed` with no blur of its own — only two blurred layers are
- * permitted in the whole app (§11) and both are spent on chrome.
+ * The field behind everything: one quiet, warm highlight falling off from the
+ * top of the viewport, not a stack of coloured gradient blobs. It reads as
+ * ambient light on an instrument panel, not as chrome to be noticed.
  */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
-  background:
-    radial-gradient(120% 90% at 12% 0%, var(--field-tint-1) 0%, transparent 55%),
-    radial-gradient(100% 80% at 92% 8%, var(--field-tint-2) 0%, transparent 58%),
-    radial-gradient(120% 100% at 50% 105%, var(--field-tint-3) 0%, transparent 60%);
+  background: radial-gradient(140% 70% at 50% -10%, var(--field-tint-1) 0%, transparent 60%);
   pointer-events: none;
 }
 
@@ -142,25 +137,22 @@ h4 {
 }
 
 /* =========================================================================
-   Shared surfaces
+   Shared surfaces — depth comes from tone, not blur or shadow (§9.1).
    ========================================================================= */
 
-/* Chrome: nav, sidebar, floating bars. Glass belongs here (§9.1). */
+/* Chrome: sidebar panels, floating bars. A flat, quiet surface — no blur. */
 .glass {
   background: var(--surface);
-  -webkit-backdrop-filter: var(--blur-chrome);
-  backdrop-filter: var(--blur-chrome);
   border: 1px solid var(--hairline);
-  /* Promote to its own layer so the blur is not recomposited on scroll (§11). */
-  will-change: transform;
 }
 
-/* Body-text containers are near-opaque, deliberately. */
+/* Body-text containers: a slightly lighter surface than the field behind
+   them, with a hairline edge. Shadow is reserved for genuinely floating
+   elements (modals), not for content that lives in the page flow. */
 .card {
   background: var(--surface-card);
   border: 1px solid var(--hairline);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-elevated);
 }
 
 @supports (corner-shape: squircle) {

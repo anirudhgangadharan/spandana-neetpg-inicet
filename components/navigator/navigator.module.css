@@ -69,7 +69,7 @@
 
 .cellCurrent {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-ring);
+  background: var(--accent-soft);
   color: var(--accent);
   font-weight: var(--weight-semibold);
 }

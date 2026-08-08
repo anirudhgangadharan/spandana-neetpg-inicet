@@ -92,23 +92,13 @@ export function PracticeShell({ facets, copIndexBase, appVersion }: PracticeShel
         <aside className={styles.sidebar} aria-label="Session setup and search">
           {inSession ? (
             <div className={`glass ${styles.panel}`}>
-              <h2 className={styles.panelTitle}>This session</h2>
-              <dl className={styles.metaList}>
-                <div>
-                  <dt>Mode</dt>
-                  <dd>{store.config?.mode === 'exam' ? 'Exam' : 'Study'}</dd>
-                </div>
-                <div>
-                  <dt>Questions</dt>
-                  <dd className="tabular">{store.ids.length}</dd>
-                </div>
-                <div>
-                  <dt>Seed</dt>
-                  <dd>
-                    <code className={styles.seed}>{store.config?.seed}</code>
-                  </dd>
-                </div>
-              </dl>
+              <div className={styles.sessionLine}>
+                <span>{store.config?.mode === 'exam' ? 'Exam' : 'Study'}</span>
+                <span aria-hidden="true">·</span>
+                <span className="tabular">{store.ids.length} questions</span>
+                <span aria-hidden="true">·</span>
+                <code className={styles.seed}>{store.config?.seed}</code>
+              </div>
               <NavigatorGrid
                 ids={store.ids}
                 index={store.index}
@@ -125,6 +115,8 @@ export function PracticeShell({ facets, copIndexBase, appVersion }: PracticeShel
               <Button variant="ghost" onClick={() => store.endSession()}>
                 End session
               </Button>
+              <div className={styles.panelDivider} />
+              <SearchField onOpenQuestion={(q) => setReviewQuestion(q)} />
             </div>
           ) : (
             <SessionSetup
@@ -135,9 +127,11 @@ export function PracticeShell({ facets, copIndexBase, appVersion }: PracticeShel
             />
           )}
 
-          <div className={`glass ${styles.panel}`}>
-            <SearchField onOpenQuestion={(q) => setReviewQuestion(q)} />
-          </div>
+          {inSession ? null : (
+            <div className={`glass ${styles.panel}`}>
+              <SearchField onOpenQuestion={(q) => setReviewQuestion(q)} />
+            </div>
+          )}
         </aside>
 
         <main id="main" className={styles.main}>

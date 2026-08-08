@@ -2,13 +2,12 @@
  * Design tokens (§9.2).
  *
  * The governing principle from §9.1 is restraint: hierarchy through space and
- * weight, one accent colour, semantic colour reserved for verdicts, and glass
- * used as a surface treatment for chrome rather than for body-text containers.
+ * weight, one warm accent colour, semantic colour reserved for the moment it
+ * carries meaning, and depth built from surface tone rather than shadow or
+ * blur — this is an instrument panel, not a stack of glass cards.
  *
- * Contrast note (§9.4): translucent surfaces make contrast content-dependent, so
- * the gradient field behind the glass is deliberately kept within a narrow
- * luminance range. Every text token is verified against the WORST-CASE stop of
- * that field, not its average — see `app/dev/contrast/page.tsx`.
+ * Contrast note (§9.4): every text token is verified against the WORST-CASE
+ * stop of its background, not its average — see `app/dev/contrast/page.tsx`.
  */
 
 :root {
@@ -54,12 +53,11 @@
   /* ---- Motion ----------------------------------------------------------- */
   --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
   --duration-micro: 120ms;
-  --duration-standard: 260ms;
-  --duration-transition: 380ms;
+  --duration-standard: 200ms;
+  --duration-transition: 260ms;
 
-  /* ---- Blur. Two blurred layers maximum (§11). -------------------------- */
-  --blur-chrome: blur(24px) saturate(180%);
-  --blur-modal: blur(40px) saturate(180%);
+  /* ---- Blur. Reserved for the modal scrim only — surfaces are flat (§11). */
+  --blur-modal: blur(32px);
 
   /* ---- Layout ----------------------------------------------------------- */
   --sidebar-width: 280px;
@@ -69,109 +67,101 @@
 }
 
 /* =========================================================================
-   Light theme — the default
+   Light theme — warm paper, not clinical white
    ========================================================================= */
 :root,
 :root[data-theme='light'] {
   color-scheme: light;
 
-  /* Gradient field. Kept within a narrow luminance range so the worst-case
-     stop behind a translucent surface is still light. */
-  --field-base: #f2f2f5;
-  --field-tint-1: rgba(120, 130, 255, 0.16);
-  --field-tint-2: rgba(255, 140, 190, 0.12);
-  --field-tint-3: rgba(110, 220, 210, 0.12);
-  /* Darkest point the field can reach; contrast is checked against this. */
-  --field-worst: #e2e0ea;
+  --field-base: #f6f2ec;
+  --field-tint-1: rgba(120, 90, 55, 0.05);
+  --field-worst: #ece5d9;
 
-  --surface: rgba(255, 255, 255, 0.72);
-  --surface-solid: #ffffff;
-  /* The question card is a near-opaque elevated surface (§9.1): the layers
-     BEHIND it carry the translucency, not the body-text container itself. */
-  --surface-card: rgba(255, 255, 255, 0.94);
-  --surface-sunken: rgba(120, 120, 128, 0.08);
-  --surface-hover: rgba(120, 120, 128, 0.06);
+  --surface: #fbf8f3;
+  --surface-solid: #fbf8f3;
+  --surface-card: #fdfbf7;
+  --surface-sunken: rgba(60, 45, 25, 0.045);
+  --surface-hover: rgba(60, 45, 25, 0.07);
 
-  --hairline: rgba(0, 0, 0, 0.1);
-  --hairline-strong: rgba(0, 0, 0, 0.16);
+  --hairline: rgba(40, 30, 20, 0.11);
+  --hairline-strong: rgba(40, 30, 20, 0.2);
 
-  --text-primary: #1c1c1e;
-  --text-secondary: #52525b;
-  --text-tertiary: #6b6b76;
+  --text-primary: #241f19;
+  --text-secondary: #5c5347;
+  --text-tertiary: #7d7365;
 
-  --accent: #0060df;
-  --accent-hover: #0050bd;
-  --accent-soft: rgba(0, 96, 223, 0.1);
-  --accent-ring: rgba(0, 96, 223, 0.32);
-  --accent-contrast: #ffffff;
+  /* The one accent: a burnished copper, restrained enough to read as an
+     instrument marking rather than a UI brand colour. */
+  --accent: #9c6a3b;
+  --accent-hover: #85592f;
+  --accent-soft: rgba(156, 106, 59, 0.1);
+  --accent-ring: rgba(156, 106, 59, 0.32);
+  --accent-contrast: #fffaf3;
 
-  --correct: #0f7b3d;
-  --correct-soft: rgba(15, 123, 61, 0.12);
-  --correct-border: rgba(15, 123, 61, 0.5);
+  --correct: #4f7a45;
+  --correct-soft: rgba(79, 122, 69, 0.1);
+  --correct-border: rgba(79, 122, 69, 0.38);
 
-  --incorrect: #c2183c;
-  --incorrect-soft: rgba(194, 24, 60, 0.1);
-  --incorrect-border: rgba(194, 24, 60, 0.45);
+  --incorrect: #a1503f;
+  --incorrect-soft: rgba(161, 80, 63, 0.1);
+  --incorrect-border: rgba(161, 80, 63, 0.38);
 
-  --warning: #8a5a00;
-  --warning-soft: rgba(180, 120, 0, 0.14);
+  --warning: #93701f;
+  --warning-soft: rgba(147, 112, 31, 0.12);
 
-  --bookmark: #a35a00;
-  --bookmark-ring: rgba(200, 130, 0, 0.85);
+  --bookmark: #93701f;
+  --bookmark-ring: rgba(147, 112, 31, 0.6);
 
-  --shadow-elevated: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.08);
-  --shadow-chrome: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-elevated: 0 1px 2px rgba(30, 20, 10, 0.06), 0 10px 24px rgba(30, 20, 10, 0.08);
+  --shadow-chrome: 0 1px 2px rgba(30, 20, 10, 0.05);
 }
 
 /* =========================================================================
-   Dark theme
+   Dark theme — deep warm ink, one copper accent
    ========================================================================= */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    --field-base: #08080b;
-    --field-tint-1: rgba(90, 110, 255, 0.16);
-    --field-tint-2: rgba(255, 90, 160, 0.1);
-    --field-tint-3: rgba(60, 200, 190, 0.1);
-    /* Lightest point the field can reach in dark mode. */
-    --field-worst: #1e1d2b;
+    --field-base: #14110e;
+    --field-tint-1: rgba(255, 226, 190, 0.035);
+    --field-worst: #1d1915;
 
-    --surface: rgba(28, 28, 30, 0.72);
-    --surface-solid: #1c1c1e;
-    --surface-card: rgba(30, 30, 33, 0.94);
-    --surface-sunken: rgba(255, 255, 255, 0.06);
-    --surface-hover: rgba(255, 255, 255, 0.08);
+    --surface: #1a1613;
+    --surface-solid: #1a1613;
+    --surface-card: #1c1815;
+    --surface-sunken: rgba(255, 247, 238, 0.045);
+    --surface-hover: rgba(255, 247, 238, 0.075);
 
-    --hairline: rgba(255, 255, 255, 0.1);
-    --hairline-strong: rgba(255, 255, 255, 0.18);
+    --hairline: rgba(255, 247, 238, 0.09);
+    --hairline-strong: rgba(255, 247, 238, 0.16);
 
-    --text-primary: #f2f2f7;
-    --text-secondary: #b4b4bd;
-    --text-tertiary: #94949e;
+    --text-primary: #ece6dc;
+    --text-secondary: #a89f92;
+    --text-tertiary: #7d766a;
 
-    --accent: #6fa8ff;
-    --accent-hover: #8bb9ff;
-    --accent-soft: rgba(111, 168, 255, 0.16);
-    --accent-ring: rgba(111, 168, 255, 0.45);
-    --accent-contrast: #0a1020;
+    --accent: #c99a63;
+    --accent-hover: #d9ac78;
+    --accent-soft: rgba(201, 154, 99, 0.14);
+    --accent-ring: rgba(201, 154, 99, 0.38);
+    --accent-contrast: #19140f;
 
-    --correct: #4ed07f;
-    --correct-soft: rgba(78, 208, 127, 0.16);
-    --correct-border: rgba(78, 208, 127, 0.5);
+    --correct: #8dae7d;
+    --correct-soft: rgba(141, 174, 125, 0.13);
+    --correct-border: rgba(141, 174, 125, 0.4);
 
-    --incorrect: #ff7a8f;
-    --incorrect-soft: rgba(255, 122, 143, 0.14);
-    --incorrect-border: rgba(255, 122, 143, 0.45);
+    --incorrect: #c98874;
+    --incorrect-soft: rgba(201, 136, 116, 0.13);
+    --incorrect-border: rgba(201, 136, 116, 0.4);
 
-    --warning: #f0c257;
-    --warning-soft: rgba(240, 194, 87, 0.16);
+    --warning: #cbab68;
+    --warning-soft: rgba(203, 171, 104, 0.14);
 
-    --bookmark: #f5b942;
-    --bookmark-ring: rgba(245, 185, 66, 0.85);
+    --bookmark: #cbab68;
+    --bookmark-ring: rgba(203, 171, 104, 0.7);
 
-    --shadow-elevated: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.45);
-    --shadow-chrome: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-elevated: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 24px rgba(0, 0, 0, 0.35);
+    --shadow-chrome: 0 1px 2px rgba(0, 0, 0, 0.25);
   }
 }
 
@@ -179,57 +169,54 @@
 :root[data-theme='dark'] {
   color-scheme: dark;
 
-  --field-base: #08080b;
-  --field-tint-1: rgba(90, 110, 255, 0.16);
-  --field-tint-2: rgba(255, 90, 160, 0.1);
-  --field-tint-3: rgba(60, 200, 190, 0.1);
-  --field-worst: #1e1d2b;
+  --field-base: #14110e;
+  --field-tint-1: rgba(255, 226, 190, 0.035);
+  --field-worst: #1d1915;
 
-  --surface: rgba(28, 28, 30, 0.72);
-  --surface-solid: #1c1c1e;
-  --surface-card: rgba(30, 30, 33, 0.94);
-  --surface-sunken: rgba(255, 255, 255, 0.06);
-  --surface-hover: rgba(255, 255, 255, 0.08);
+  --surface: #1a1613;
+  --surface-solid: #1a1613;
+  --surface-card: #1c1815;
+  --surface-sunken: rgba(255, 247, 238, 0.045);
+  --surface-hover: rgba(255, 247, 238, 0.075);
 
-  --hairline: rgba(255, 255, 255, 0.1);
-  --hairline-strong: rgba(255, 255, 255, 0.18);
+  --hairline: rgba(255, 247, 238, 0.09);
+  --hairline-strong: rgba(255, 247, 238, 0.16);
 
-  --text-primary: #f2f2f7;
-  --text-secondary: #b4b4bd;
-  --text-tertiary: #94949e;
+  --text-primary: #ece6dc;
+  --text-secondary: #a89f92;
+  --text-tertiary: #7d766a;
 
-  --accent: #6fa8ff;
-  --accent-hover: #8bb9ff;
-  --accent-soft: rgba(111, 168, 255, 0.16);
-  --accent-ring: rgba(111, 168, 255, 0.45);
-  --accent-contrast: #0a1020;
+  --accent: #c99a63;
+  --accent-hover: #d9ac78;
+  --accent-soft: rgba(201, 154, 99, 0.14);
+  --accent-ring: rgba(201, 154, 99, 0.38);
+  --accent-contrast: #19140f;
 
-  --correct: #4ed07f;
-  --correct-soft: rgba(78, 208, 127, 0.16);
-  --correct-border: rgba(78, 208, 127, 0.5);
+  --correct: #8dae7d;
+  --correct-soft: rgba(141, 174, 125, 0.13);
+  --correct-border: rgba(141, 174, 125, 0.4);
 
-  --incorrect: #ff7a8f;
-  --incorrect-soft: rgba(255, 122, 143, 0.14);
-  --incorrect-border: rgba(255, 122, 143, 0.45);
+  --incorrect: #c98874;
+  --incorrect-soft: rgba(201, 136, 116, 0.13);
+  --incorrect-border: rgba(201, 136, 116, 0.4);
 
-  --warning: #f0c257;
-  --warning-soft: rgba(240, 194, 87, 0.16);
+  --warning: #cbab68;
+  --warning-soft: rgba(203, 171, 104, 0.14);
 
-  --bookmark: #f5b942;
-  --bookmark-ring: rgba(245, 185, 66, 0.85);
+  --bookmark: #cbab68;
+  --bookmark-ring: rgba(203, 171, 104, 0.7);
 
-  --shadow-elevated: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.45);
-  --shadow-chrome: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-elevated: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 24px rgba(0, 0, 0, 0.35);
+  --shadow-chrome: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
 /* =========================================================================
-   prefers-contrast: more — glass becomes opaque, hairlines strengthen (§10)
+   prefers-contrast: more — surfaces flatten further, hairlines strengthen (§10)
    ========================================================================= */
 @media (prefers-contrast: more) {
   :root {
     --surface: var(--surface-solid);
     --surface-card: var(--surface-solid);
-    --blur-chrome: none;
     --blur-modal: none;
     --hairline: var(--hairline-strong);
     --text-secondary: var(--text-primary);
