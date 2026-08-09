@@ -12,11 +12,18 @@
  * auth.ts extends this with the Credentials provider and the DB-backed jwt
  * callback, and is used everywhere else (API routes, server components) —
  * those run in the regular Node.js runtime, where bcryptjs works fine.
+ *
+ * `trustHost: true` — required for any self-hosted deployment that isn't
+ * auto-detected as trusted (Vercel, Netlify). Render proxies and forwards
+ * every request, and without this Auth.js refuses the incoming Host header
+ * outright, surfacing to the client as a generic "server configuration"
+ * error with no further detail.
  */
 import type { NextAuthConfig } from 'next-auth';
 import Google from 'next-auth/providers/google';
 
 export const authConfig = {
+  trustHost: true,
   session: { strategy: 'jwt' },
   pages: { signIn: '/login' },
   providers: [Google],
