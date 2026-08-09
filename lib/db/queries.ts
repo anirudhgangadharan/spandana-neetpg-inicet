@@ -43,6 +43,15 @@ export interface QuestionFilters {
   readonly onlyFlagged?: boolean;
   /** Exclude duplicates and conflicting-answer records (H6, H9). Default true. */
   readonly sessionEligibleOnly?: boolean;
+  /**
+   * Session-state-aware planning (Incorrect/Marked modes): restrict to
+   * exactly these ids, resolved server-side from the user's Neon history —
+   * never trust an id list from the client directly against this filter.
+   */
+  readonly includeIds?: readonly string[];
+  /** New-questions mode: everything EXCEPT these ids (the user's full
+   *  attempted-id set for the current scope). */
+  readonly excludeIds?: readonly string[];
 }
 
 export const UNCATEGORISED = '__uncategorised__';
@@ -89,6 +98,22 @@ function buildWhere(filters: QuestionFilters): WhereClause {
 
   if (filters.onlyFlagged === true) clauses.push('quality_warning = 1');
   if (filters.sessionEligibleOnly !== false) clauses.push('session_eligible = 1');
+
+  if (filters.includeIds !== undefined) {
+    // An explicit but EMPTY include list means "nothing matches" (e.g. the
+    // user has zero incorrect questions in this scope) — not "no
+    // constraint," which `id IN ()` would be invalid SQL for anyway.
+    if (filters.includeIds.length === 0) {
+      clauses.push('0 = 1');
+    } else {
+      clauses.push(`id IN (${filters.includeIds.map(() => '?').join(',')})`);
+      params.push(...filters.includeIds);
+    }
+  }
+  if (filters.excludeIds !== undefined && filters.excludeIds.length > 0) {
+    clauses.push(`id NOT IN (${filters.excludeIds.map(() => '?').join(',')})`);
+    params.push(...filters.excludeIds);
+  }
 
   return { sql: clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : '', params };
 }

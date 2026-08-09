@@ -174,12 +174,20 @@ export async function insertAttemptEvents(userId: string, events: readonly Verif
   await touchSessions(userId, sessionIds);
 }
 
-export async function upsertBookmarks(userId: string, questionIds: readonly string[]): Promise<void> {
-  for (const id of questionIds) {
-    await sql.query('insert into bookmarks (user_id, question_id) values ($1, $2) on conflict do nothing', [
-      userId,
-      id,
-    ]);
+export interface BookmarkInput {
+  readonly questionId: string;
+  readonly subject: string;
+  readonly topic: string | null;
+}
+
+export async function upsertBookmarks(userId: string, bookmarks: readonly BookmarkInput[]): Promise<void> {
+  for (const b of bookmarks) {
+    await sql.query(
+      `insert into bookmarks (user_id, question_id, subject, topic)
+       values ($1, $2, $3, $4)
+       on conflict (user_id, question_id) do update set subject = excluded.subject, topic = excluded.topic`,
+      [userId, b.questionId, b.subject, b.topic]
+    );
   }
 }
 

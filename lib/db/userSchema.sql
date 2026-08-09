@@ -8,7 +8,20 @@ create table if not exists users (
   name          text,
   image         text,
   password_hash text,
-  created_at    timestamptz not null default now()
+  created_at    timestamptz not null default now(),
+  -- Streak state (habit-formation plan). Denormalized here rather than
+  -- computed from attempt_events on every read, since the streak is
+  -- displayed on effectively every page load. Updated by updateStreak()
+  -- in lib/db/streak.ts, called from the /api/sync POST path whenever a
+  -- new attempt event actually lands.
+  current_streak     integer not null default 0,
+  longest_streak      integer not null default 0,
+  last_active_date    date,
+  streak_freezes      integer not null default 0,
+  -- Remembered session config for the one-tap "Continue practicing" path
+  -- (frictionless re-entry plan) — synced server-side, not localStorage,
+  -- so it follows the account across devices like everything else here.
+  last_session_config jsonb
 );
 
 create table if not exists sessions (
@@ -28,6 +41,14 @@ create table if not exists sessions (
 create table if not exists bookmarks (
   user_id     uuid not null references users(id) on delete cascade,
   question_id text not null,
+  -- Denormalized from the corpus at write time (same reasoning as
+  -- attempt_events.subject/topic) so "Marked" counts for the session-mode
+  -- selector are a single Neon aggregation, not a cross-database lookup
+  -- into corpus.sqlite for every bookmark. Nullable at the DB level only so
+  -- the ALTER-based upgrade path below doesn't need a backfill — the
+  -- application always supplies both on insert (see upsertBookmarks()).
+  subject     text,
+  topic       text,
   created_at  timestamptz not null default now(),
   primary key (user_id, question_id)
 );
@@ -54,3 +75,17 @@ create index if not exists attempt_events_question_id_idx on attempt_events (que
 create index if not exists attempt_events_subject_idx on attempt_events (subject);
 create index if not exists attempt_events_user_attempted_idx on attempt_events (user_id, attempted_at);
 create index if not exists attempt_events_session_id_idx on attempt_events (session_id);
+
+-- ---------------------------------------------------------------------------
+-- Upgrade path: `create table if not exists` above is a no-op against a
+-- database that already has these tables, so new columns need explicit
+-- ALTER statements. Safe to re-run — IF NOT EXISTS on every one.
+-- ---------------------------------------------------------------------------
+alter table users add column if not exists current_streak integer not null default 0;
+alter table users add column if not exists longest_streak integer not null default 0;
+alter table users add column if not exists last_active_date date;
+alter table users add column if not exists streak_freezes integer not null default 0;
+alter table users add column if not exists last_session_config jsonb;
+
+alter table bookmarks add column if not exists subject text;
+alter table bookmarks add column if not exists topic text;

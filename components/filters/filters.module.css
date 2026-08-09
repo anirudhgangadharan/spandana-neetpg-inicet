@@ -177,3 +177,66 @@
   line-height: var(--leading-caption);
   color: var(--text-tertiary);
 }
+
+/* ---- question mode (session-state-aware planning) ----------------------- */
+.questionModeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-2);
+}
+
+.questionModeOption {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2) var(--space-3);
+  min-height: var(--tap-min);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hairline);
+  background: var(--surface-sunken);
+  text-align: left;
+  transition:
+    background-color var(--duration-micro) var(--ease-standard),
+    border-color var(--duration-micro) var(--ease-standard);
+}
+
+.questionModeOptionActive {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.questionModeLabel {
+  font-size: var(--text-callout);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+.questionModeCount {
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+
+.questionModeOptionActive .questionModeCount {
+  color: var(--accent);
+}
+
+/* ---- advanced (seed) — collapsed by default ------------------------------ */
+.advanced {
+  border-top: 1px solid var(--hairline);
+  padding-top: var(--space-3);
+}
+
+.advancedSummary {
+  cursor: pointer;
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.advanced[open] .advancedSummary {
+  margin-bottom: var(--space-3);
+}

@@ -18,8 +18,10 @@ import {
   getLatestAttempts,
   insertAttemptEvents,
   upsertBookmarks,
+  type BookmarkInput,
   type VerifiedAttemptEvent,
 } from '@/lib/db/userQueries';
+import { updateStreak } from '@/lib/db/streak';
 import type { AttemptRecord } from '@/types';
 
 export async function GET(): Promise<NextResponse> {
@@ -88,12 +90,24 @@ export async function POST(request: Request): Promise<NextResponse> {
       sessionId,
     });
   }
-  if (verified.length > 0) await insertAttemptEvents(userId, verified);
+  let streak = null;
+  if (verified.length > 0) {
+    await insertAttemptEvents(userId, verified);
+    // Streak counts "answered something today," not any lesser sync event —
+    // only updated when real attempts landed this call.
+    streak = await updateStreak(userId);
+  }
 
-  const bookmarkPuts = stringList(body.bookmarkPuts);
+  const bookmarkPutIds = stringList(body.bookmarkPuts);
+  const bookmarkPuts: BookmarkInput[] = [];
+  for (const id of bookmarkPutIds) {
+    const question = getQuestionById(id);
+    if (question === null) continue;
+    bookmarkPuts.push({ questionId: id, subject: question.subject, topic: question.topic });
+  }
   const bookmarkDeletes = stringList(body.bookmarkDeletes);
   if (bookmarkPuts.length > 0) await upsertBookmarks(userId, bookmarkPuts);
   if (bookmarkDeletes.length > 0) await deleteBookmarks(userId, bookmarkDeletes);
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, streak });
 }

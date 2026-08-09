@@ -51,6 +51,15 @@ export const MAX_CACHED_QUESTIONS = 200;
 /** How many ids to request per fetch. */
 export const FETCH_CHUNK = 25;
 
+/**
+ * Session-state-aware planning: which slice of the filtered pool to draw
+ * from, resolved server-side against this user's Neon history (never
+ * trust an id list from the client — see app/api/session/plan/route.ts).
+ * Named `questionMode` throughout to avoid colliding with `StudyMode`
+ * (study/exam), an unrelated axis.
+ */
+export type QuestionMode = 'new' | 'incorrect' | 'marked' | 'all';
+
 export interface SessionConfig {
   readonly seed: string;
   readonly count: number;
@@ -61,6 +70,7 @@ export interface SessionConfig {
   readonly topics: readonly string[];
   readonly onlyFlagged: boolean;
   readonly mode: StudyMode;
+  readonly questionMode: QuestionMode;
 }
 
 export const SESSION_STORAGE_KEY = 'medmcqa:session';
@@ -217,6 +227,7 @@ function buildQueryString(config: SessionConfig): URLSearchParams {
   for (const s of config.subjects) params.append('subject', s);
   for (const t of config.topics) params.append('topic', t);
   if (config.onlyFlagged) params.set('flagged', '1');
+  if (config.questionMode !== 'all') params.set('mode', config.questionMode);
   return params;
 }
 
@@ -304,6 +315,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         topics: config.topics,
         mode: config.mode,
         plannedCount: plan.ids.length,
+        rememberConfig: config,
       });
       await get().ensureWindow();
     } catch (err) {

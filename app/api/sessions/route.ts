@@ -7,6 +7,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { closeSession, createSession } from '@/lib/db/userQueries';
+import { saveLastSessionConfig } from '@/lib/db/statsQueries';
 
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
@@ -19,6 +20,10 @@ interface StartBody {
   readonly topics?: unknown;
   readonly mode?: unknown;
   readonly plannedCount?: unknown;
+  /** Full config, saved as "last used" for the one-tap Continue path
+   *  (frictionless-re-entry plan) — separate from the fields above, which
+   *  are what actually creates the `sessions` row for drop-off analysis. */
+  readonly rememberConfig?: unknown;
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -47,6 +52,10 @@ export async function POST(request: Request): Promise<NextResponse> {
     mode: body.mode === 'exam' ? 'exam' : 'study',
     plannedCount,
   });
+
+  if (body.rememberConfig !== undefined && body.rememberConfig !== null) {
+    await saveLastSessionConfig(session.user.id, body.rememberConfig);
+  }
 
   return NextResponse.json({ ok: true }, { status: 201 });
 }

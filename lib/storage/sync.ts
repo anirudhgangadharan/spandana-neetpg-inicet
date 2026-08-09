@@ -88,6 +88,9 @@ export interface StartRemoteSessionInput {
   readonly topics: readonly string[];
   readonly mode: string;
   readonly plannedCount: number;
+  /** Saved as "last used" for the one-tap Continue path (frictionless-
+   *  re-entry plan) — the full SessionConfig, opaque to this layer. */
+  readonly rememberConfig?: unknown;
 }
 
 /** Analytics-only — a failed/missing `sessions` row never affects the

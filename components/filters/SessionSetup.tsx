@@ -10,14 +10,31 @@
  * rather than a gap (H5, Appendix A.10 point 2).
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { Facets } from '@/lib/db/queries';
 import type { StudyMode } from '@/lib/storage/prefs';
 import { Button } from '@/components/ui/primitives';
-import type { SessionConfig } from '@/features/session/store';
+import type { QuestionMode, SessionConfig } from '@/features/session/store';
 import { SOURCE_LABEL, USMLE_SUBJECT_LABELS } from '@/lib/constants/sources';
 import type { QuestionSource } from '@/types';
 import styles from './filters.module.css';
+
+interface QuestionCounts {
+  readonly total: number;
+  readonly new: number;
+  readonly incorrect: number;
+  readonly correct: number;
+  readonly marked: number;
+}
+
+const QUESTION_MODE_LABEL: Record<QuestionMode, string> = {
+  new: 'New',
+  incorrect: 'Incorrect',
+  marked: 'Marked',
+  all: 'All',
+};
+
+const COUNTS_DEBOUNCE_MS = 220;
 
 const ALL_SOURCES: readonly QuestionSource[] = ['medmcqa', 'usmle'];
 const USMLE_SUBJECT_SET = new Set(USMLE_SUBJECT_LABELS);
@@ -56,6 +73,9 @@ export function SessionSetup({ facets, busy, error, onStart }: SessionSetupProps
   const [mode, setMode] = useState<StudyMode>('study');
   const [onlyFlagged, setOnlyFlagged] = useState(false);
   const [seed, setSeed] = useState<string>(makeSeed);
+  const [questionMode, setQuestionMode] = useState<QuestionMode>('new');
+  const [counts, setCounts] = useState<QuestionCounts | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // The subject facet is source-unscoped at the query layer by design (every
   // USMLE subject value self-discloses what it is, per D-023) — scoped here,
@@ -92,6 +112,33 @@ export function SessionSetup({ facets, busy, error, onStart }: SessionSetupProps
     }
     return subjects.reduce((sum, s) => sum + (facets.subjects.find((f) => f.name === s)?.count ?? 0), 0);
   }, [facets.subjects, subjects, visibleSubjects]);
+
+  // Live New/Incorrect/Marked counts for the current filter selection
+  // (session-state-aware planning plan). Debounced the same way SearchField
+  // debounces keystrokes — rapid checkbox toggling shouldn't fire a request
+  // per click.
+  useEffect(() => {
+    const params = new URLSearchParams();
+    for (const s of sources) params.append('source', s);
+    for (const s of subjects) params.append('subject', s);
+    for (const t of topics) params.append('topic', t);
+    if (onlyFlagged) params.set('flagged', '1');
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void fetch(`/api/questions/counts?${params.toString()}`, { signal: controller.signal })
+        .then((res) => (res.ok ? (res.json() as Promise<QuestionCounts>) : null))
+        .then((body) => {
+          if (body !== null) setCounts(body);
+        })
+        .catch(() => undefined);
+    }, COUNTS_DEBOUNCE_MS);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [sources, subjects, topics, onlyFlagged]);
 
   return (
     <div className={`glass ${styles.sidebar}`}>
@@ -234,20 +281,48 @@ export function SessionSetup({ facets, busy, error, onStart }: SessionSetupProps
       </div>
 
       <div className={styles.group}>
-        <h2 className={styles.groupTitle}>Seed</h2>
+        <h2 className={styles.groupTitle}>What to practice</h2>
+        <div className={styles.questionModeGrid} role="radiogroup" aria-label="Which questions to draw from">
+          {(['new', 'incorrect', 'marked', 'all'] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              role="radio"
+              aria-checked={questionMode === m}
+              className={`${styles.questionModeOption} ${questionMode === m ? styles.questionModeOptionActive : ''}`}
+              onClick={() => setQuestionMode(m)}
+            >
+              <span className={styles.questionModeLabel}>{QUESTION_MODE_LABEL[m]}</span>
+              <span className={`${styles.questionModeCount} tabular`}>
+                {counts === null ? '…' : (m === 'all' ? counts.total : counts[m]).toLocaleString('en-IN')}
+              </span>
+            </button>
+          ))}
+        </div>
+        {questionMode !== 'all' ? (
+          <p className={styles.hint}>Draws only from questions matching this state, within your filters above.</p>
+        ) : null}
+      </div>
+
+      <details className={styles.advanced} open={showAdvanced} onToggle={(e) => setShowAdvanced(e.currentTarget.open)}>
+        <summary className={styles.advancedSummary}>Advanced</summary>
         <div className={styles.field}>
+          <label className={styles.label} htmlFor="seed">
+            Seed
+          </label>
           <input
+            id="seed"
             className={styles.input}
             value={seed}
             onChange={(e) => setSeed(e.target.value.slice(0, 128))}
-            aria-label="Session seed"
           />
           <p className={styles.hint}>
-            The same seed and filters always produce the same question sequence, so a session can be repeated
-            exactly or shared with someone else.
+            {questionMode === 'all'
+              ? 'The same seed and filters always produce the same question sequence, so a session can be repeated exactly or shared with someone else.'
+              : 'For New/Incorrect/Marked, the pool changes as you answer more questions, so the seed reproduces the ORDER of a draw rather than an identical future one.'}
           </p>
         </div>
-      </div>
+      </details>
 
       {error === null ? null : (
         <p role="alert" style={{ color: 'var(--incorrect)', fontSize: 'var(--text-callout)' }}>
@@ -267,6 +342,7 @@ export function SessionSetup({ facets, busy, error, onStart }: SessionSetupProps
             topics,
             onlyFlagged,
             mode,
+            questionMode,
           })
         }
       >

@@ -60,6 +60,31 @@ export function withCorpus(handler: () => NextResponse): NextResponse {
   }
 }
 
+/** Async twin of withCorpus, for handlers that also need an `await` (e.g.
+ *  resolving a session mode against the user's Neon history before
+ *  planning against the corpus). Same error mapping, just Promise-shaped. */
+export async function withCorpusAsync(handler: () => Promise<NextResponse>): Promise<NextResponse> {
+  try {
+    return await handler();
+  } catch (err) {
+    if (err instanceof CorpusUnavailableError) {
+      return NextResponse.json<ApiErrorBody>(
+        {
+          error: 'corpus_unavailable',
+          message: err.message,
+          problems: err.problems,
+        },
+        { status: 503, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+    console.error('[api] unhandled error', err);
+    return NextResponse.json<ApiErrorBody>(
+      { error: 'internal_error', message: 'The server could not complete the request.' },
+      { status: 500, headers: { 'Cache-Control': 'no-store' } }
+    );
+  }
+}
+
 /** Repeated query params: `?subject=A&subject=B`, or a single comma-separated value. */
 export function readList(params: URLSearchParams, key: string): string[] {
   const all = params.getAll(key);
