@@ -3,7 +3,7 @@
  *
  * Live counts for the session-mode selector in SessionSetup: how many
  * questions in the current filter selection are New/Incorrect/Correct/
- * Marked, alongside the total. Requires a signed-in user (always true in
+ * Attempted/Marked, alongside the total. Requires a signed-in user (always true in
  * practice behind the hard gate) — every count but `total` is per-account.
  */
 import { NextResponse, type NextRequest } from 'next/server';
@@ -49,6 +49,7 @@ export function GET(request: NextRequest): ReturnType<typeof withCorpusAsync> {
         new: Math.max(0, total - attempted.length),
         incorrect: incorrect.length,
         correct: correct.length,
+        attempted: attempted.length,
         marked: marked.length,
       },
       { headers: { 'Cache-Control': 'no-store' } }

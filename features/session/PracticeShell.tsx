@@ -57,7 +57,11 @@ function parseRememberedConfig(value: unknown): Omit<SessionConfig, 'seed' | 'co
   const mode = v['mode'] === 'exam' ? 'exam' : 'study';
   const rawQuestionMode = v['questionMode'];
   const questionMode: QuestionMode =
-    rawQuestionMode === 'new' || rawQuestionMode === 'incorrect' || rawQuestionMode === 'marked' || rawQuestionMode === 'all'
+    rawQuestionMode === 'new' ||
+    rawQuestionMode === 'incorrect' ||
+    rawQuestionMode === 'attempted' ||
+    rawQuestionMode === 'marked' ||
+    rawQuestionMode === 'all'
       ? rawQuestionMode
       : 'new';
   return { sources, subjects, topics, onlyFlagged, mode, questionMode };

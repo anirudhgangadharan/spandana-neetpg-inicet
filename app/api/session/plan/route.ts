@@ -11,10 +11,12 @@
  *   all       — today's behaviour, unchanged: any question matching filters.
  *   new       — excludes every question this user has ever attempted.
  *   incorrect — restricted to questions whose latest attempt was wrong.
+ *   attempted — restricted to questions with at least one prior attempt,
+ *               regardless of whether the latest verdict was right or wrong.
  *   marked    — restricted to this user's bookmarks.
  * Defaults to `all` when omitted, so this endpoint's behaviour for an
  * existing caller that never sends `mode` is byte-for-byte unchanged.
- * new/incorrect/marked require a signed-in user (always true in practice —
+ * new/incorrect/attempted/marked require a signed-in user (always true in practice —
  * this route sits behind the hard login gate — but checked explicitly
  * rather than assumed).
  *
@@ -29,7 +31,7 @@ import { MAX_SESSION_SIZE, planSession, type QuestionFilters } from '@/lib/db/qu
 import { getAttemptedQuestionIds, getIncorrectQuestionIds, getMarkedQuestionIds } from '@/lib/db/questionStateQueries';
 import { filtersFromParams } from '../../questions/route';
 
-const VALID_MODES = ['all', 'new', 'incorrect', 'marked'] as const;
+const VALID_MODES = ['all', 'new', 'incorrect', 'attempted', 'marked'] as const;
 type SessionMode = (typeof VALID_MODES)[number];
 
 export function GET(request: NextRequest): ReturnType<typeof withCorpusAsync> {
@@ -64,6 +66,9 @@ export function GET(request: NextRequest): ReturnType<typeof withCorpusAsync> {
         filters = { ...baseFilters, excludeIds };
       } else if (mode === 'incorrect') {
         const includeIds = await getIncorrectQuestionIds(session.user.id, subjects, topics);
+        filters = { ...baseFilters, includeIds };
+      } else if (mode === 'attempted') {
+        const includeIds = await getAttemptedQuestionIds(session.user.id, subjects, topics);
         filters = { ...baseFilters, includeIds };
       } else {
         const includeIds = await getMarkedQuestionIds(session.user.id, subjects, topics);

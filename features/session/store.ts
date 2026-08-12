@@ -58,7 +58,7 @@ export const FETCH_CHUNK = 25;
  * Named `questionMode` throughout to avoid colliding with `StudyMode`
  * (study/exam), an unrelated axis.
  */
-export type QuestionMode = 'new' | 'incorrect' | 'marked' | 'all';
+export type QuestionMode = 'new' | 'incorrect' | 'attempted' | 'marked' | 'all';
 
 export interface SessionConfig {
   readonly seed: string;

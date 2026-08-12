@@ -24,12 +24,14 @@ interface QuestionCounts {
   readonly new: number;
   readonly incorrect: number;
   readonly correct: number;
+  readonly attempted: number;
   readonly marked: number;
 }
 
 const QUESTION_MODE_LABEL: Record<QuestionMode, string> = {
   new: 'New',
   incorrect: 'Incorrect',
+  attempted: 'Attempted',
   marked: 'Marked',
   all: 'All',
 };
@@ -283,7 +285,7 @@ export function SessionSetup({ facets, busy, error, onStart }: SessionSetupProps
       <div className={styles.group}>
         <h2 className={styles.groupTitle}>What to practice</h2>
         <div className={styles.questionModeGrid} role="radiogroup" aria-label="Which questions to draw from">
-          {(['new', 'incorrect', 'marked', 'all'] as const).map((m) => (
+          {(['new', 'incorrect', 'attempted', 'marked', 'all'] as const).map((m) => (
             <button
               key={m}
               type="button"
@@ -319,7 +321,7 @@ export function SessionSetup({ facets, busy, error, onStart }: SessionSetupProps
           <p className={styles.hint}>
             {questionMode === 'all'
               ? 'The same seed and filters always produce the same question sequence, so a session can be repeated exactly or shared with someone else.'
-              : 'For New/Incorrect/Marked, the pool changes as you answer more questions, so the seed reproduces the ORDER of a draw rather than an identical future one.'}
+              : 'For New/Incorrect/Attempted/Marked, the pool changes as you answer more questions, so the seed reproduces the ORDER of a draw rather than an identical future one.'}
           </p>
         </div>
       </details>
