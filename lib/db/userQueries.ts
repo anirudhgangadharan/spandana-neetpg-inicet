@@ -152,6 +152,7 @@ export interface VerifiedAttemptEvent {
   readonly attemptedAt: number;
   readonly durationMs: number;
   readonly sessionId: string | null;
+  readonly confidence: string | null;
 }
 
 /**
@@ -165,9 +166,20 @@ export async function insertAttemptEvents(userId: string, events: readonly Verif
   for (const e of events) {
     await sql.query(
       `insert into attempt_events
-         (user_id, session_id, question_id, subject, topic, selected_index, verdict, attempted_at, duration_ms)
-       values ($1, $2, $3, $4, $5, $6, $7, to_timestamp($8 / 1000.0), $9)`,
-      [userId, e.sessionId, e.questionId, e.subject, e.topic, e.selectedIndex, e.verdict, e.attemptedAt, e.durationMs]
+         (user_id, session_id, question_id, subject, topic, selected_index, verdict, attempted_at, duration_ms, confidence)
+       values ($1, $2, $3, $4, $5, $6, $7, to_timestamp($8 / 1000.0), $9, $10)`,
+      [
+        userId,
+        e.sessionId,
+        e.questionId,
+        e.subject,
+        e.topic,
+        e.selectedIndex,
+        e.verdict,
+        e.attemptedAt,
+        e.durationMs,
+        e.confidence,
+      ]
     );
   }
   const sessionIds = [...new Set(events.map((e) => e.sessionId).filter((s): s is string => s !== null))];
@@ -202,6 +214,7 @@ export interface LatestAttemptRow {
   readonly verdict: string;
   readonly attemptedAt: number;
   readonly durationMs: number;
+  readonly confidence: string | null;
 }
 
 /** The latest event per question — collapses the append-only log back to
@@ -213,7 +226,8 @@ export async function getLatestAttempts(userId: string): Promise<LatestAttemptRo
        selected_index,
        verdict,
        extract(epoch from attempted_at) * 1000 as attempted_at,
-       duration_ms
+       duration_ms,
+       confidence
      from attempt_events
      where user_id = $1
      order by question_id, attempted_at desc`,
@@ -224,6 +238,7 @@ export async function getLatestAttempts(userId: string): Promise<LatestAttemptRo
     verdict: string;
     attempted_at: string;
     duration_ms: number;
+    confidence: string | null;
   }[];
 
   return rows.map((r) => ({
@@ -232,6 +247,7 @@ export async function getLatestAttempts(userId: string): Promise<LatestAttemptRo
     verdict: r.verdict,
     attemptedAt: Number(r.attempted_at),
     durationMs: r.duration_ms,
+    confidence: r.confidence,
   }));
 }
 

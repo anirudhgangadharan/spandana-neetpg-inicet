@@ -76,6 +76,10 @@ export interface Question {
 
 export type Verdict = 'correct' | 'incorrect' | 'unattempted' | 'skipped';
 
+/** Self-rated confidence, tapped before submit (quiet-gamification plan).
+ *  Optional and skippable — most attempts will have none. */
+export type Confidence = 'know' | 'fairly_sure' | 'guessing';
+
 /**
  * Persisted per question. Note: contains NO answer data (I3). A user who edits
  * their IndexedDB can corrupt their own progress but cannot change what the app
@@ -89,6 +93,7 @@ export interface AttemptRecord {
   readonly attemptedAt: number;
   readonly durationMs: number;
   readonly bookmarked: boolean;
+  readonly confidence?: Confidence | null;
 }
 
 // ---------------------------------------------------------------------------

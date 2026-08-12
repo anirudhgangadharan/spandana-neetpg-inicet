@@ -1,0 +1,151 @@
+/* Admin notes page. Reuses the app's existing tokens/.card/.glass — no new visual system. */
+
+.page {
+  max-width: var(--content-max);
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.back {
+  font-size: var(--text-callout);
+  color: var(--text-secondary);
+}
+
+.title {
+  font-size: var(--text-display);
+  line-height: var(--leading-display);
+  letter-spacing: -0.02em;
+}
+
+.error {
+  color: var(--incorrect);
+  font-size: var(--text-callout);
+}
+
+.hint {
+  font-size: var(--text-callout);
+  color: var(--text-tertiary);
+}
+
+.form {
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  padding: 3px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  border: 1px solid var(--hairline);
+  width: max-content;
+}
+
+.tab {
+  min-width: 100px;
+  min-height: 38px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-callout);
+  color: var(--text-secondary);
+}
+
+.tabActive {
+  background: var(--surface-solid);
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+  box-shadow: var(--shadow-chrome);
+}
+
+.row {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex: 1 1 220px;
+}
+
+.label {
+  font-size: var(--text-callout);
+  color: var(--text-secondary);
+}
+
+.input,
+.textarea {
+  min-height: var(--tap-min);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--hairline);
+  background: var(--surface-solid);
+  color: var(--text-primary);
+  font-size: var(--text-callout);
+  width: 100%;
+  font-family: inherit;
+}
+
+.textarea {
+  min-height: 160px;
+  resize: vertical;
+  line-height: var(--leading-body);
+}
+
+.imageRow {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.imageRow .input {
+  flex: 1 1 auto;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--hairline);
+  font-size: var(--text-callout);
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--text-tertiary);
+  font-weight: var(--weight-medium);
+}
+
+.scopeBadge {
+  font-size: var(--text-caption);
+  color: var(--text-tertiary);
+}
+
+.rowActions {
+  display: flex;
+  gap: var(--space-2);
+}

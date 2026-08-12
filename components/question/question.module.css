@@ -335,3 +335,90 @@
     opacity: 0.55;
   }
 }
+
+/* ---- notes (authored explanations plan) --------------------------------- */
+.notes {
+  border-top: 1px solid var(--hairline);
+  padding-top: var(--space-4);
+}
+
+.notesToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--tap-min);
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.notesTitle {
+  font-size: var(--text-caption);
+  line-height: var(--leading-caption);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.notesCount {
+  font-weight: var(--weight-regular);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.notesBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-2);
+}
+
+.noteItem {
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.noteItemTitle {
+  font-size: var(--text-callout);
+  font-weight: var(--weight-semibold);
+}
+
+.noteMarkdown {
+  font-size: var(--text-callout);
+  line-height: var(--leading-callout);
+  color: var(--text-primary);
+}
+
+.noteMarkdown :global(p) {
+  margin-bottom: var(--space-2);
+}
+
+.noteMarkdown :global(p:last-child) {
+  margin-bottom: 0;
+}
+
+.noteMarkdown :global(ul),
+.noteMarkdown :global(ol) {
+  padding-inline-start: var(--space-4);
+  margin-bottom: var(--space-2);
+}
+
+.noteMarkdown :global(code) {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--surface-solid);
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.noteImage {
+  max-width: 100%;
+  border-radius: var(--radius-md);
+}

@@ -31,10 +31,18 @@ interface WeakTopic {
   readonly attempts: number;
 }
 
+interface ConfidentWrong {
+  readonly questionId: string;
+  readonly subject: string;
+  readonly topic: string | null;
+  readonly attemptedAt: number;
+}
+
 interface InsightsResponse {
   readonly subjects: readonly SubjectInsight[];
   readonly weakTopics: readonly WeakTopic[];
   readonly unrevisitedCount: number;
+  readonly confidentWrong: readonly ConfidentWrong[];
 }
 
 function formatDuration(ms: number): string {
@@ -117,6 +125,25 @@ export default function InsightsPage(): React.JSX.Element {
           </ul>
         )}
       </section>
+
+      {data !== null && data.confidentWrong.length > 0 ? (
+        <section className={`card ${styles.section}`}>
+          <h2 className={styles.sectionTitle}>Blind spots — confident but wrong</h2>
+          <p className={styles.hint}>
+            You tapped &ldquo;Know it&rdquo; on these, but your last attempt was wrong. Worth a second look.
+          </p>
+          <ul className={styles.bookmarkList}>
+            {data.confidentWrong.map((c) => (
+              <li key={c.questionId}>
+                <button type="button" className={styles.bookmarkRow} onClick={() => openReview(c.questionId)}>
+                  {c.subject}
+                  {c.topic === null ? '' : ` · ${c.topic}`}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {data !== null && data.weakTopics.length > 0 ? (
         <section className={`card ${styles.section}`}>

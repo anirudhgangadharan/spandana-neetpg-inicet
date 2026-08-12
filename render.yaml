@@ -22,3 +22,7 @@ services:
         sync: false
       - key: AUTH_GOOGLE_SECRET
         sync: false
+      # Comma-separated list of emails allowed to write notes at /admin/notes
+      # (authored explanations plan). Checked via lib/auth/admin.ts.
+      - key: ADMIN_EMAILS
+        sync: false

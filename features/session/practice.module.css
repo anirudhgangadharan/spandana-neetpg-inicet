@@ -97,6 +97,39 @@
   margin-inline: auto;
 }
 
+.confidenceTap {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+}
+
+.confidencePill {
+  min-height: 34px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--hairline);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--text-caption);
+  transition:
+    background-color var(--duration-micro) var(--ease-standard),
+    color var(--duration-micro) var(--ease-standard),
+    border-color var(--duration-micro) var(--ease-standard);
+}
+
+.confidencePill:hover {
+  color: var(--text-secondary);
+  border-color: var(--hairline-strong);
+}
+
+.confidencePillActive {
+  background: var(--surface-sunken);
+  border-color: var(--hairline-strong);
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+}
+
 .actionBar {
   display: flex;
   flex-wrap: wrap;

@@ -22,7 +22,7 @@ import {
   type VerifiedAttemptEvent,
 } from '@/lib/db/userQueries';
 import { updateStreak } from '@/lib/db/streak';
-import type { AttemptRecord } from '@/types';
+import type { AttemptRecord, Confidence } from '@/types';
 
 export async function GET(): Promise<NextResponse> {
   const session = await auth();
@@ -40,6 +40,7 @@ export async function GET(): Promise<NextResponse> {
     attemptedAt: a.attemptedAt,
     durationMs: a.durationMs,
     bookmarked: bookmarked.has(a.questionId),
+    confidence: a.confidence as Confidence | null,
   }));
 
   return NextResponse.json({ attempts, bookmarks: bookmarkIds });
@@ -88,6 +89,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       attemptedAt: record.attemptedAt,
       durationMs: record.durationMs,
       sessionId,
+      confidence: record.confidence ?? null,
     });
   }
   let streak = null;

@@ -24,6 +24,7 @@ import { DisclaimerGate, DisclaimerFooter } from '@/components/Disclaimer';
 import { AccountMenu } from '@/components/auth/AccountMenu';
 import { SHORTCUT_HELP, useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { getStorageHealth, summariseProgress, useSessionStore, type ProgressSummary, type QuestionMode, type SessionConfig } from './store';
+import { ConfidenceTap } from './ConfidenceTap';
 import styles from './practice.module.css';
 
 export interface PracticeShellProps {
@@ -400,6 +401,8 @@ export function PracticeShell({ facets, copIndexBase, appVersion }: PracticeShel
                 onSubmit={() => store.submit()}
                 onToggleBookmark={() => store.toggleBookmark()}
               />
+
+              {revealed ? null : <ConfidenceTap value={store.confidence} onChange={(c) => store.setConfidence(c)} />}
 
               <div className={`glass ${styles.actionBar}`}>
                 <Button onClick={() => store.previous()} disabled={store.index === 0}>

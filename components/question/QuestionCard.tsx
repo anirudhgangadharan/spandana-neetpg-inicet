@@ -15,6 +15,7 @@ import { Badge, IconButton } from '@/components/ui/primitives';
 import { SOURCE_LABEL } from '@/lib/constants/sources';
 import { FLAG_PRESENTATION, flagsForCard, flagsForDetail } from './flags';
 import { OptionGroup } from './OptionGroup';
+import { QuestionNotes } from './QuestionNotes';
 import styles from './question.module.css';
 
 const LETTERS = ['A', 'B', 'C', 'D'] as const;
@@ -206,6 +207,8 @@ export function QuestionCard({
           )}
         </section>
       ) : null}
+
+      {revealed ? <QuestionNotes questionId={question.id} /> : null}
 
       <footer className={styles.provenance}>
         {/* I5 — every card exposes its dataset id and source split. */}

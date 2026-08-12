@@ -14,7 +14,10 @@ import type { NextConfig } from 'next';
  * What this costs is small here, because there is no injection vector to exploit:
  * all dataset text is reduced to plain text during the ETL and rendered through
  * ordinary React interpolation, and `dangerouslySetInnerHTML` is banned outright
- * and CI-enforced (§13.6). The app renders no user-supplied or remote markup.
+ * and CI-enforced (§13.6). The one exception, admin-authored notes (authored
+ * explanations plan), is markdown rendered by react-markdown to React elements —
+ * never through an HTML string — so it still never touches `dangerouslySetInnerHTML`
+ * or executes embedded script tags.
  *
  * The clause that carries real weight is `connect-src 'self'` — a
  * browser-enforced second line behind invariant I2. Even a compromised
@@ -30,7 +33,10 @@ const csp = [
   "form-action 'self'",
   "frame-ancestors 'none'",
   "object-src 'none'",
-  "img-src 'self' data:",
+  // huggingface.co: image hosting for admin-authored notes (authored
+  // explanations plan) — admins paste a `resolve/main/...` URL from a
+  // Hugging Face dataset repo, never an upload path through this app.
+  "img-src 'self' data: https://huggingface.co",
   "font-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "connect-src 'self'",

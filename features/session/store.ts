@@ -20,7 +20,7 @@
  */
 
 import { create } from 'zustand';
-import type { AnswerIndex, AttemptRecord, Question, QuestionSource, Verdict } from '@/types';
+import type { AnswerIndex, AttemptRecord, Confidence, Question, QuestionSource, Verdict } from '@/types';
 import { evaluate } from '@/lib/core/verdict';
 import {
   flushNow,
@@ -106,6 +106,9 @@ export interface SessionStore {
   /** The user's current, unsubmitted choice for the question on screen. */
   selection: AnswerIndex | null;
   questionStartedAt: number;
+  /** Self-rated confidence tap (quiet-gamification plan), reset on every
+   *  question change. Skippable — stays null unless tapped. */
+  confidence: Confidence | null;
 
   // ---- corpus cache (never persisted) -----------------------------------
   questions: ReadonlyMap<string, Question>;
@@ -128,6 +131,7 @@ export interface SessionStore {
   endSession: () => void;
 
   select: (index: AnswerIndex) => void;
+  setConfidence: (confidence: Confidence | null) => void;
   submit: () => void;
   skip: () => void;
   goTo: (index: number) => void;
@@ -245,6 +249,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessionId: null,
   selection: null,
   questionStartedAt: 0,
+  confidence: null,
   questions: new Map<string, Question>(),
   loadingIds: new Set<string>(),
   attempts: new Map<string, AttemptRecord>(),
@@ -303,6 +308,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         submittedPaper: false,
         sessionId,
         selection: null,
+        confidence: null,
         questions: new Map<string, Question>(),
         status: 'ready',
       });
@@ -336,6 +342,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       submittedPaper: persisted.submittedPaper,
       sessionId: persisted.sessionId,
       selection: null,
+      confidence: null,
       status: 'ready',
     });
     setSyncSessionId(persisted.sessionId);
@@ -356,6 +363,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       submittedPaper: false,
       sessionId: null,
       selection: null,
+      confidence: null,
       questions: new Map<string, Question>(),
       status: 'idle',
       error: null,
@@ -370,6 +378,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // record of what the user answered is as immutable as the answer itself).
     if (state.revealed.has(id)) return;
     set({ selection: index });
+  },
+
+  setConfidence(confidence) {
+    set({ confidence });
   },
 
   submit() {
@@ -390,6 +402,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       attemptedAt: Date.now(),
       durationMs: Math.max(0, Date.now() - state.questionStartedAt),
       bookmarked: state.bookmarks.has(id),
+      confidence: state.confidence,
     };
 
     const attempts = new Map(state.attempts);
@@ -400,7 +413,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const revealed = new Set(state.revealed);
     if (state.config?.mode !== 'exam') revealed.add(id);
 
-    set({ attempts, revealed });
+    set({ attempts, revealed, confidence: null });
     writePersistedSession(get());
   },
 
@@ -426,6 +439,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       queueAttempt(record);
       set({ attempts });
     }
+    set({ confidence: null });
     get().next();
   },
 
@@ -441,6 +455,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // Restore the previous choice when revisiting an answered question.
       selection: existing?.selectedIndex ?? null,
       questionStartedAt: Date.now(),
+      confidence: null,
       questions: evict(state.questions, state.ids, clamped),
     });
     writePersistedSession(get());

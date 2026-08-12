@@ -76,6 +76,25 @@ create index if not exists attempt_events_subject_idx on attempt_events (subject
 create index if not exists attempt_events_user_attempted_idx on attempt_events (user_id, attempted_at);
 create index if not exists attempt_events_session_id_idx on attempt_events (session_id);
 
+-- Editorial notes attached to a single question or to a whole
+-- subject/topic concept (authored explanations plan). Not user-generated —
+-- written by admins only (enforced at the API route, see lib/auth/admin.ts)
+-- — so unlike attempt_events this table has no user_id at all.
+create table if not exists notes (
+  id          uuid primary key default gen_random_uuid(),
+  scope_type  text not null check (scope_type in ('question','concept')),
+  scope_key   text not null,
+  subject     text,
+  topic       text,
+  title       text,
+  body_md     text not null,
+  image_urls  jsonb not null default '[]',
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create index if not exists notes_scope_idx on notes (scope_type, scope_key);
+create index if not exists notes_subject_topic_idx on notes (subject, topic);
+
 -- ---------------------------------------------------------------------------
 -- Upgrade path: `create table if not exists` above is a no-op against a
 -- database that already has these tables, so new columns need explicit
@@ -89,3 +108,9 @@ alter table users add column if not exists last_session_config jsonb;
 
 alter table bookmarks add column if not exists subject text;
 alter table bookmarks add column if not exists topic text;
+
+-- Confidence tap (quiet-gamification plan): the user's self-rated confidence
+-- at submit time, nullable — old rows and skipped taps stay null, never
+-- backfilled or inferred.
+alter table attempt_events add column if not exists confidence text
+  check (confidence in ('know', 'fairly_sure', 'guessing'));

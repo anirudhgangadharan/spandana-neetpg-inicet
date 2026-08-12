@@ -9,10 +9,11 @@
  * finds, including a payload from the client).
  */
 
-import type { AttemptRecord, Verdict } from '@/types';
+import type { AttemptRecord, Confidence, Verdict } from '@/types';
 import { isAnswerIndex } from './answer-index';
 
 const VERDICTS: readonly string[] = ['correct', 'incorrect', 'unattempted', 'skipped'];
+const CONFIDENCES: readonly string[] = ['know', 'fairly_sure', 'guessing'];
 
 /**
  * Note what is NOT accepted: any extra properties on the input are dropped
@@ -36,6 +37,12 @@ export function parseAttemptRecord(value: unknown): AttemptRecord | null {
   const durationMs = v['durationMs'];
   if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs < 0) return null;
 
+  const confidenceRaw = v['confidence'];
+  if (confidenceRaw !== undefined && confidenceRaw !== null && !CONFIDENCES.includes(confidenceRaw as string)) {
+    return null;
+  }
+  const confidence = (confidenceRaw ?? null) as Confidence | null;
+
   return {
     questionId: v['questionId'],
     selectedIndex: selected === null ? null : selected,
@@ -43,5 +50,6 @@ export function parseAttemptRecord(value: unknown): AttemptRecord | null {
     attemptedAt,
     durationMs,
     bookmarked: v['bookmarked'] === true,
+    confidence,
   };
 }

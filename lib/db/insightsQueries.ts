@@ -12,6 +12,7 @@ import { sql } from './userClient';
 const MIN_SUBJECT_SAMPLE = 20;
 const MIN_TOPIC_ATTEMPTS = 3;
 const MAX_WEAK_TOPICS = 5;
+const MAX_CONFIDENT_WRONG = 20;
 
 export interface SubjectInsight {
   readonly subject: string;
@@ -125,6 +126,47 @@ export async function getWeakestTopics(userId: string): Promise<WeakTopic[]> {
   )) as { topic: string; graded: number; correct: number }[];
 
   return rows.map((r) => ({ topic: r.topic, accuracy: r.correct / r.graded, attempts: r.graded }));
+}
+
+export interface ConfidentWrong {
+  readonly questionId: string;
+  readonly subject: string;
+  readonly topic: string | null;
+  readonly attemptedAt: number;
+}
+
+/**
+ * "Blind spots" (quiet-gamification plan): questions whose LATEST attempt was
+ * graded incorrect, but the user tapped 'know' beforehand — the gap between
+ * felt and actual mastery is exactly what a plain accuracy number can't show.
+ * Confidence taps are optional (§ confidence tap is skippable), so this is
+ * necessarily a subset of all wrong answers, not "everything you got wrong."
+ */
+export async function getConfidentWrong(userId: string): Promise<ConfidentWrong[]> {
+  const rows = (await sql.query(
+    `
+    with latest as (
+      select distinct on (question_id)
+        question_id, subject, topic, verdict, confidence, attempted_at
+      from attempt_events
+      where user_id = $1
+      order by question_id, attempted_at desc
+    )
+    select question_id, subject, topic, extract(epoch from attempted_at) * 1000 as attempted_at
+    from latest
+    where verdict = 'incorrect' and confidence = 'know'
+    order by attempted_at desc
+    limit $2
+    `,
+    [userId, MAX_CONFIDENT_WRONG]
+  )) as { question_id: string; subject: string; topic: string | null; attempted_at: string }[];
+
+  return rows.map((r) => ({
+    questionId: r.question_id,
+    subject: r.subject,
+    topic: r.topic,
+    attemptedAt: Number(r.attempted_at),
+  }));
 }
 
 /** Bookmarked questions whose most recent attempt is still wrong — the
