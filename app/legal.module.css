@@ -1,0 +1,30 @@
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4);
+}
+
+.panel {
+  padding: var(--space-6);
+  display: grid;
+  gap: var(--space-4);
+}
+
+.panel h1,
+.panel h2,
+.panel p,
+.panel ul {
+  margin: 0;
+}
+
+.panel ul {
+  padding-inline-start: var(--space-6);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.notice {
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--warning-soft);
+}

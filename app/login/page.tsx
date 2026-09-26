@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/primitives';
 import styles from './login.module.css';
 
@@ -38,8 +39,13 @@ export default function LoginPage(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const callbackUrl = (): string => {
+    const requested = new URLSearchParams(window.location.search).get('callbackUrl');
+    return requested?.startsWith('/') && !requested.startsWith('//') ? requested : '/';
+  };
+
   const handleGoogle = (): void => {
-    void signIn('google', { callbackUrl: '/' });
+    void signIn('google', { callbackUrl: callbackUrl() });
   };
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
@@ -64,7 +70,7 @@ export default function LoginPage(): React.JSX.Element {
         setError(mode === 'signup' ? 'Account created, but sign-in failed. Try signing in.' : 'Wrong email or password.');
         return;
       }
-      window.location.href = '/';
+      window.location.href = callbackUrl();
     } finally {
       setBusy(false);
     }
@@ -160,6 +166,11 @@ export default function LoginPage(): React.JSX.Element {
             {busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
           </Button>
         </form>
+        <p className={styles.legal}>
+          <Link href="/privacy">Privacy</Link>
+          {' · '}
+          <Link href="/delete-account">Account deletion</Link>
+        </p>
       </div>
     </div>
   );

@@ -691,6 +691,14 @@ persistent footer gained a matching citation. Redistribution risk for the
 USMLE-derived portion of the corpus is the deploying party's to verify — this
 matches the user's explicit instruction and is stated as such in both places.
 
+**Deployment-preparation update (26 September 2026):** the upstream MedQA
+repository now visibly describes itself as the code-and-data repository and
+contains a root MIT licence, copyright 2022 Di Jin. That primary-source evidence
+resolves the repository-level notice that was absent from the downloaded local
+archive. `LICENSE-MEDQA.txt`, `ATTRIBUTION.md`, the README, and the persistent
+footer now carry the MIT notice/link. This update does not purport to license
+third-party textbook content, which this application does not distribute.
+
 ---
 
 ## D-029 — Bug found in browser verification: mixed-source sessions silently returned 100% MedMCQA · DEVIATION (bug fixed)
@@ -751,3 +759,43 @@ risks, neither spec-related, both worth recording:
 
 Flagged for the user; not acted on unilaterally since the working directory was
 specified.
+
+---
+
+## D-030 — Faculty privacy is ownership isolation, including from super admin · ACCEPTED
+
+Faculty content is not an administrative resource. The super admin can add, disable, and remove up to three faculty grants and see minimal operational metadata, but every module/content/attempt/analytics query requires the authenticated faculty owner. There is no hidden override. Google provider subject identifies the super admin; verified Google ownership is required before a faculty email grant activates.
+
+Question reuse is global across all professors at the user's direction. The selection query may reveal that a corpus question was used, but never the professor, module, participants, or results that caused the exclusion.
+
+---
+
+## D-031 — Published assessments are immutable snapshots; deadlines are server-authoritative · ACCEPTED
+
+Publication copies the selected question text, options, answer index, explanation, metadata, order, corpus hash, timing, scoring, attempt, and review policy into Postgres. Database triggers prevent later configuration/question mutation. Attempts use database time, immutable deadlines, a one-active-attempt index, unique attempt numbers, and transactions for creation, answer persistence, finalization, and scoring. Browser timers are usability indicators and cannot extend a deadline.
+
+This is not proctoring. Students can use the unchanged ordinary-practice bank and may have seen questions before. Network/client automation and outside resources remain outside the threat model.
+
+---
+
+## D-032 — Account deletion removes faculty-owned cross-user assessment data atomically · ACCEPTED
+
+Because module ownership is restrictive, deleting faculty requires an explicit transaction that first removes every owned module and its participant records, then grants and the user. This prioritizes the faculty owner's right to delete the assessment collection over retaining students' historical results. The UI warns about that cross-user effect before confirmation. Browser data is discarded only after server success; provider backups/log retention remains an operator disclosure blocker.
+
+---
+
+## D-033 — Operational readiness is stricter than process liveness · ACCEPTED
+
+`/api/health` is ready only when the checksummed corpus is usable, Postgres responds, migration 004 is recorded, and mandatory auth/sweep/privacy configuration is present. Production responses suppress internal paths, SQL errors, and secrets. Migration tools are dry-run by default, require a separate migration URL and exact target acknowledgement, and never silently use the runtime database URL.
+
+---
+
+## D-034 — Local logical concurrency is evidence of correctness, not hosted capacity · ACCEPTED
+
+The PGlite test drives 50 distinct start/save/submit sequences and duplicate-start races through the real transaction code, proving uniqueness and state-transition behavior under overlapping promises. PGlite serializes database transactions in-process and has no Neon network, proxy, pool, or multi-process behavior. It cannot support a claim of 200 concurrent students. That claim requires a production-equivalent hosted-Postgres load test with latency, error, saturation, and record-integrity evidence.
+
+---
+
+## D-035 — The web release and Google Play release are separate products · ACCEPTED
+
+Responsive web UI, a production container, public privacy/deletion pages, and Play policy research do not create an Android application. This repository has no Android project, AAB, signing, package identity, deep-link/auth handoff, Android lifecycle validation, Play declarations, store listing, or testing-track evidence. `GOOGLE_PLAY_RELEASE.md` records the official current requirements and the remaining work; no Android or Play-readiness claim is made.

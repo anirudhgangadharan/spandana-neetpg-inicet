@@ -75,6 +75,7 @@ US English, 4-option subset (`US/4_options/`), 12,723 records.
 
 - Repository: https://github.com/jind11/MedQA
 - Paper: https://arxiv.org/abs/2009.13081
+- Licence: https://github.com/jind11/MedQA/blob/master/LICENSE
 
 ```bibtex
 @article{jin2020disease,
@@ -85,15 +86,18 @@ US English, 4-option subset (`US/4_options/`), 12,723 records.
 }
 ```
 
-### Licence — not resolved, not asserted
+### Licence — MIT
 
-No `LICENSE`, `README`, or citation file accompanied the copy of this dataset
-used to build this corpus. Unlike the MedMCQA discrepancy above (two named
-licences to reconcile), here there is nothing local to reconcile from at all.
-This project therefore does **not** assert a specific redistribution licence for
-the USMLE-derived data — it cites the dataset and its origin honestly and stops
-there. Anyone redistributing this application together with the USMLE-derived
-data should verify licensing terms independently before relying on this note.
+The upstream repository describes itself as containing the code and data for
+MedQA and now includes a root MIT licence, copyright 2022 Di Jin. The licence
+was verified against the upstream repository on 26 September 2026 and is
+reproduced in [`LICENSE-MEDQA.txt`](LICENSE-MEDQA.txt). The local source archive
+did not carry that file, which is why earlier project documentation conservatively
+left the position unresolved.
+
+This is a repository-level licensing observation, not legal advice or a claim
+about third-party material outside the distributed US four-option QA records.
+The application does not redistribute the accompanying medical textbooks.
 
 ### What was changed
 

@@ -1,0 +1,21 @@
+# Android and Google Play gap analysis
+
+Verified against official Google/Android documentation on 25 September 2026.
+
+This repository is a responsive Next.js web application and production container. It contains no Android project, manifest, package ID, Gradle build, Android App Bundle, Play App Signing configuration, native OAuth redirect flow, deep-link verification, or Android lifecycle/device testing. It is therefore **not Android-ready or Google Play-ready**.
+
+## Current requirements relevant to this product
+
+- New mobile apps and updates submitted after 31 August 2026 must target Android 16 (API level 36). Existing apps must target at least API 35 to remain available to new users on newer Android versions. [Google Play target API requirements](https://support.google.com/googleplay/android-developer/answer/11926878?hl=en)
+- New Play apps are published as Android App Bundles and use Play App Signing. The future Android build must be tested from the generated bundle, not only as a local debug APK. [Android App Bundle overview](https://developer.android.com/guide/app-bundle) and [bundle testing](https://developer.android.com/guide/app-bundle/test)
+- An app that lets users create accounts must offer deletion in the app and provide a functional external web deletion resource. Associated user data must be deleted, with retained data and reasons disclosed. The implemented web endpoints provide the application behavior, but Play Console still needs the deployed external URL. [Account deletion requirement](https://support.google.com/googleplay/android-developer/answer/13327111?hl=en)
+- Play requires an accurate Data safety form and a public, non-editable, non-geofenced privacy-policy URL describing data access, collection, use, sharing, security, retention, deletion, and developer contact. This repository's policy still has named operator/provider-retention blockers. [User Data policy](https://support.google.com/googleplay/android-developer/answer/10144311?hl=en-GB)
+- Every app must complete the Health apps declaration. Health/medical-information apps that are not regulated medical devices must use the required store-listing disclaimer and remind users to consult a healthcare professional. The in-app educational disclaimer is helpful but does not replace the Play listing declaration/text. [Health Content and Services policy](https://support.google.com/googleplay/android-developer/answer/16679511?hl=en-GB) and [Health apps declaration](https://support.google.com/googleplay/android-developer/answer/14738291?hl=en)
+- Personal developer accounts created after 13 November 2023 must run a closed test with at least 12 opted-in testers continuously for 14 days before applying for production access. [Testing requirements](https://support.google.com/googleplay/android-developer/answer/14151465?hl=en)
+- Android developer verification and app registration are rolling out. By 30 September 2026, apps must be registered to verified developers to install/update on certified devices in Brazil, Indonesia, Singapore, and Thailand, with broader rollout from 2027. [Official Android developer verification update](https://developer.android.com/blog/posts/android-developer-verification-rolling-out-to-all-developers-on-play-console-and-android-developer-console)
+
+## Additional engineering required
+
+Choose a native Android or carefully reviewed Trusted Web Activity/wrapper architecture, then implement the Android project, secure Google sign-in handoff, verified app/deep links for module URLs, cookie/session behavior, back navigation, lifecycle/background timer behavior, offline/error UX, downloads, permissions minimization, screenshots/icons, and accessibility across supported devices. Generate a signed AAB, test it with `bundletool` and Play internal testing, resolve the pre-launch report, and only then execute the policy/store steps above.
+
+The web app's server-authoritative deadline remains the source of truth; an Android client must not introduce a client-clock scoring path or cache answer keys. A hosted-Postgres load test and production operations work remain prerequisites independently of Android packaging.

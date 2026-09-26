@@ -4,20 +4,18 @@
  *   GET  -> every note, newest first (admin table view)
  *   POST -> create one
  *
- * Both require session.user.email to be in ADMIN_EMAILS (lib/auth/admin.ts).
- * This is a separate, stricter gate than the plain login check middleware.ts
- * already applies to every page/API route — being signed in is necessary
- * but not sufficient here.
+ * Both require the live editorial-note permission resolved by
+ * lib/auth/roles.ts. This is separate from faculty and super-admin roles.
  */
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
-import { isAdminEmail } from '@/lib/auth/admin';
+import { getCurrentActor } from '@/lib/auth/roles';
 import { createNote, listNotes, type CreateNoteInput, type NoteScope } from '@/lib/db/notesQueries';
+import { isSameOrigin } from '@/lib/api/sameOrigin';
+import { JsonBodyError, readBoundedJson } from '@/lib/api/jsonBody';
 
 async function requireAdmin(): Promise<string | null> {
-  const session = await auth();
-  if (!session?.user || !isAdminEmail(session.user.email)) return null;
-  return session.user.id;
+  const actor = await getCurrentActor();
+  return actor?.canEditNotes ? actor.userId : null;
 }
 
 export async function GET(): Promise<NextResponse> {
@@ -56,12 +54,17 @@ function imageUrlList(value: unknown): string[] | null {
 export async function POST(request: Request): Promise<NextResponse> {
   const userId = await requireAdmin();
   if (userId === null) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+  if (!isSameOrigin(request)) return NextResponse.json({ message: 'Invalid request origin.' }, { status: 403 });
 
   let body: CreateBody;
   try {
-    body = (await request.json()) as CreateBody;
-  } catch {
-    return NextResponse.json({ message: 'Invalid JSON body.' }, { status: 400 });
+    body = (await readBoundedJson(request, 128 * 1024)) as CreateBody;
+  } catch (error) {
+    if (error instanceof JsonBodyError) return NextResponse.json({ message: error.message }, { status: error.status });
+    throw error;
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return NextResponse.json({ message: 'A JSON object is required.' }, { status: 400 });
   }
 
   const scopeType: unknown = body.scopeType;

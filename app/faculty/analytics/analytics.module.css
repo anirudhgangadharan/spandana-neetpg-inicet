@@ -1,0 +1,27 @@
+.page { max-width: 1240px; margin: 0 auto; padding: var(--space-8) var(--space-4); display: grid; gap: var(--space-6); }
+.header { display: grid; gap: var(--space-2); }
+.headerNav { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.muted { color: var(--text-secondary); }
+.notice { padding: var(--space-3); background: var(--accent-soft); border-radius: var(--radius-sm); }
+.metricGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: var(--space-3); }
+.metric { padding: var(--space-4); display: grid; gap: var(--space-1); }
+.metric strong { font-size: var(--text-title-2); font-variant-numeric: tabular-nums; }
+.panel { padding: var(--space-5); display: grid; gap: var(--space-4); min-width: 0; }
+.panel h2, .panel h3 { margin: 0; }
+.twoColumn { display: grid; gap: var(--space-5); }
+.distribution { display: grid; gap: var(--space-2); list-style: none; padding: 0; }
+.barRow { display: grid; grid-template-columns: minmax(80px, auto) minmax(100px, 1fr) 3ch; align-items: center; gap: var(--space-2); }
+.barTrack { background: var(--surface-raised); border: 1px solid var(--hairline); border-radius: var(--radius-pill); height: 12px; overflow: hidden; }
+.bar { display: block; height: 100%; background: var(--accent); border-radius: inherit; min-width: 2px; }
+.tableWrap { overflow-x: auto; }
+.table { border-collapse: collapse; width: 100%; min-width: 680px; }
+.table caption { text-align: left; font-weight: var(--weight-semibold); padding-bottom: var(--space-3); }
+.table th, .table td { border-bottom: 1px solid var(--hairline); padding: var(--space-3); text-align: left; vertical-align: top; }
+.table th { color: var(--text-secondary); font-size: var(--text-caption); }
+.numeric { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.search { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: flex-end; }
+.search label { display: grid; gap: var(--space-1); flex: 1 1 260px; }
+.search input { min-height: var(--tap-min); padding: var(--space-2) var(--space-3); border: 1px solid var(--hairline-strong); border-radius: var(--radius-sm); background: var(--surface); }
+.pager { display: flex; gap: var(--space-4); align-items: center; }
+.attention { color: var(--incorrect); font-weight: var(--weight-medium); }
+@media (min-width: 860px) { .twoColumn { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

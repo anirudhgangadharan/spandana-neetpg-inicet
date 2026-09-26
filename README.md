@@ -57,7 +57,7 @@ property is enforced rather than trusted:
   serve any questions at all.
 - A CI grep enforces that the answer field is unreadable outside the trusted
   core, so no UI code can improvise its own notion of correctness.
-- 260+ tests, including an exhaustive pass asserting the answer mapping over
+- 300+ tests, including an exhaustive pass asserting the answer mapping over
   every question and every option in the built corpus, and a round-trip test
   against an oracle derived independently of the encoding under test.
 
@@ -83,6 +83,39 @@ pnpm data:build
 pnpm dev
 ```
 
+Copy `.env.example` to `.env.local` and fill the account/database values before using authenticated practice or faculty features. Migration commands are dry-run by default; see [`SCHEMA_MIGRATIONS.md`](SCHEMA_MIGRATIONS.md).
+
+## Faculty assessments
+
+The authenticated application has three isolated roles:
+
+- students practise normally and take shared-link timed modules;
+- each faculty account drafts, publishes, archives, and analyzes only its own modules;
+- the super admin manages up to three faculty email grants but has no question, response, or detailed-analytics bypass.
+
+Published modules freeze question content, order, marking, attempt policy, and review policy in Postgres. Student deadlines and attempt limits are enforced transactionally on the server; active responses never include answer keys. Faculty selection defaults to globally unused questions while revealing no other professor's module identity.
+
+Self-service account deletion is at `/account/delete`, with public instructions at `/delete-account` and the public notice at `/privacy`. See [`PRIVACY.md`](PRIVACY.md) for exact cascade behavior and unresolved operator-retention requirements.
+
+## Verification and release status
+
+Common local checks are:
+
+```bash
+pnpm typecheck
+pnpm lint
+pnpm lint:invariants
+pnpm test
+pnpm test:coverage
+pnpm build
+pnpm test:e2e
+pnpm data:modules:rehearse
+```
+
+The precise Milestone 5 evidence is in [`FACULTY_MODULES_MILESTONE_5.md`](FACULTY_MODULES_MILESTONE_5.md). This repository is a web application, not an Android application. It has no AAB or Android project and is not Google Play-ready; see [`GOOGLE_PLAY_RELEASE.md`](GOOGLE_PLAY_RELEASE.md) and [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md).
+
+Deployment configuration, secrets, readiness, migration order, scheduled expiry, and scaling limitations are documented in [`HOSTING.md`](HOSTING.md).
+
 ## Attribution
 
 Questions from **MedMCQA**:
@@ -103,7 +136,7 @@ Questions from **MedQA-USMLE** (US English, 4-option subset):
 
 [Paper](https://arxiv.org/abs/2009.13081) ·
 [Dataset](https://github.com/jind11/MedQA) ·
-Licence not asserted — see [`ATTRIBUTION.md`](ATTRIBUTION.md).
+[Licence](LICENSE-MEDQA.txt) (MIT; verified from the upstream code-and-data repository)
 
 Full attribution and the list of transformations applied during import:
 [`ATTRIBUTION.md`](ATTRIBUTION.md).

@@ -8,6 +8,8 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
 import { closeSession, createSession } from '@/lib/db/userQueries';
 import { saveLastSessionConfig } from '@/lib/db/statsQueries';
+import { isSameOrigin } from '@/lib/api/sameOrigin';
+import { JsonBodyError, readBoundedJson } from '@/lib/api/jsonBody';
 
 function stringList(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
@@ -29,12 +31,17 @@ interface StartBody {
 export async function POST(request: Request): Promise<NextResponse> {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  if (!isSameOrigin(request)) return NextResponse.json({ message: 'Invalid request origin.' }, { status: 403 });
 
   let body: StartBody;
   try {
-    body = (await request.json()) as StartBody;
-  } catch {
-    return NextResponse.json({ message: 'Invalid JSON body.' }, { status: 400 });
+    body = (await readBoundedJson(request, 64 * 1024)) as StartBody;
+  } catch (error) {
+    if (error instanceof JsonBodyError) return NextResponse.json({ message: error.message }, { status: error.status });
+    throw error;
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return NextResponse.json({ message: 'A JSON object is required.' }, { status: 400 });
   }
   if (typeof body.sessionId !== 'string' || body.sessionId.length === 0) {
     return NextResponse.json({ message: 'sessionId is required.' }, { status: 400 });
@@ -68,12 +75,17 @@ interface EndBody {
 export async function PATCH(request: Request): Promise<NextResponse> {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  if (!isSameOrigin(request)) return NextResponse.json({ message: 'Invalid request origin.' }, { status: 403 });
 
   let body: EndBody;
   try {
-    body = (await request.json()) as EndBody;
-  } catch {
-    return NextResponse.json({ message: 'Invalid JSON body.' }, { status: 400 });
+    body = (await readBoundedJson(request, 4 * 1024)) as EndBody;
+  } catch (error) {
+    if (error instanceof JsonBodyError) return NextResponse.json({ message: error.message }, { status: error.status });
+    throw error;
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return NextResponse.json({ message: 'A JSON object is required.' }, { status: 400 });
   }
   if (typeof body.sessionId !== 'string' || body.sessionId.length === 0) {
     return NextResponse.json({ message: 'sessionId is required.' }, { status: 400 });

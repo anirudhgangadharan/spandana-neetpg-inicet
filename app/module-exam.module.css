@@ -1,0 +1,30 @@
+.page { max-width: 1160px; margin: 0 auto; padding: var(--space-8) var(--space-4); display: grid; gap: var(--space-6); }
+.header { display: grid; gap: var(--space-2); }
+.panel { padding: var(--space-6); display: grid; gap: var(--space-4); min-width: 0; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-4); }
+.facts div { display: grid; gap: var(--space-1); }
+.facts dt, .meta { color: var(--text-secondary); font-size: var(--text-callout); }
+.facts dd { margin: 0; font-weight: var(--weight-medium); }
+.instructions { border-top: 1px solid var(--hairline); padding-top: var(--space-4); white-space: pre-wrap; }
+.notice { background: var(--accent-soft); border-radius: var(--radius-sm); padding: var(--space-3); }
+.error { background: var(--warning-soft); border-radius: var(--radius-sm); padding: var(--space-3); }
+.startAction, .actions { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center; }
+.examGrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.timerBox { display: inline-flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.timer { font: var(--weight-semibold) var(--text-title)/var(--leading-title) var(--font-mono); font-variant-numeric: tabular-nums; }
+.saveStatus { color: var(--text-secondary); }
+.stem { font-size: var(--text-body); line-height: var(--leading-body); white-space: pre-wrap; overflow-wrap: anywhere; }
+.choices { border: 0; padding: 0; margin: 0; display: grid; gap: var(--space-2); }
+.choice { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3); min-height: var(--option-min-height); border: 1px solid var(--hairline-strong); border-radius: var(--radius-sm); cursor: pointer; white-space: pre-wrap; overflow-wrap: anywhere; }
+.choice:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.choice input { margin-top: 5px; flex: none; accent-color: var(--accent); }
+.choice:focus-within, .number:focus-visible, .currentNumber:focus-visible { outline: 3px solid var(--accent-ring); outline-offset: 2px; }
+.numberGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: var(--space-2); max-height: 430px; overflow: auto; }
+.number, .currentNumber { min-height: var(--tap-min); border: 1px solid var(--hairline-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-primary); cursor: pointer; font: inherit; }
+.number[data-answered='true'] { border-color: var(--correct-border); background: var(--correct-soft); }
+.currentNumber { border-color: var(--accent); background: var(--accent-soft); font-weight: var(--weight-semibold); }
+.score { font-size: var(--text-display); line-height: var(--leading-display); font-weight: var(--weight-semibold); }
+.reviewList { display: grid; gap: var(--space-6); padding-left: var(--space-6); }
+.reviewList > li { border-bottom: 1px solid var(--hairline); padding-bottom: var(--space-6); overflow-wrap: anywhere; }
+.reviewList ol { display: grid; gap: var(--space-2); padding-left: var(--space-6); }
+@media (min-width: 850px) { .examGrid { grid-template-columns: minmax(0, 1fr) 270px; } }

@@ -22,6 +22,7 @@ import { SearchField } from '@/components/filters/SearchField';
 import { Button, ProgressBar, uiStyles } from '@/components/ui/primitives';
 import { DisclaimerGate, DisclaimerFooter } from '@/components/Disclaimer';
 import { AccountMenu } from '@/components/auth/AccountMenu';
+import { mulberry32, nextInt, seedFromString } from '@/lib/utils/rng';
 import { SHORTCUT_HELP, useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { getStorageHealth, summariseProgress, useSessionStore, type ProgressSummary, type QuestionMode, type SessionConfig } from './store';
 import { ConfidenceTap } from './ConfidenceTap';
@@ -75,18 +76,14 @@ interface SessionSummaryData {
   readonly highlight: string;
 }
 
-/** Rotates which stat leads the session-end summary — a fixed message every
- *  time is a fixed reward, and fixed rewards are what habit-formation
- *  research says extinguishes fastest (variable-ratio reinforcement is the
- *  whole point). Picked from whichever candidates are actually meaningful
- *  right now, never a fabricated one. */
-function pickHighlight(progress: ProgressSummary, streak: number, questionsCovered: number): string {
+/** Pick a meaningful session-end highlight reproducibly from the session seed. */
+function pickHighlight(progress: ProgressSummary, streak: number, questionsCovered: number, seed: string): string {
   const candidates: string[] = [];
   if (streak >= 2) candidates.push(`${streak}-day streak.`);
   if (progress.accuracy !== null) candidates.push(`${Math.round(progress.accuracy * 100)}% accuracy this session.`);
   candidates.push(`${questionsCovered.toLocaleString('en-IN')} questions covered so far.`);
   candidates.push('Session complete.');
-  return candidates[Math.floor(Math.random() * candidates.length)] ?? 'Session complete.';
+  return candidates[nextInt(mulberry32(seedFromString(seed)), candidates.length)] ?? 'Session complete.';
 }
 
 export function PracticeShell({ facets, copIndexBase, appVersion }: PracticeShellProps): React.JSX.Element {
@@ -165,6 +162,7 @@ export function PracticeShell({ facets, copIndexBase, appVersion }: PracticeShel
   // not whatever they were a fraction of a second before the last answer.
   const handleFinish = useCallback(async (): Promise<void> => {
     const finalProgress = progress;
+    const finalSeed = store.config?.seed ?? '';
     await flushNow();
     const freshStats = await refreshStats();
     setSessionSummary({
@@ -174,7 +172,8 @@ export function PracticeShell({ facets, copIndexBase, appVersion }: PracticeShel
       highlight: pickHighlight(
         finalProgress,
         freshStats?.currentStreak ?? stats?.currentStreak ?? 0,
-        freshStats?.questionsCovered ?? stats?.questionsCovered ?? 0
+        freshStats?.questionsCovered ?? stats?.questionsCovered ?? 0,
+        finalSeed
       ),
     });
     store.endSession();

@@ -109,3 +109,10 @@
   font-size: var(--text-callout);
   color: var(--incorrect);
 }
+
+.legal {
+  margin: 0;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: var(--text-caption);
+}

@@ -23,6 +23,8 @@ import {
 } from '@/lib/db/userQueries';
 import { updateStreak } from '@/lib/db/streak';
 import type { AttemptRecord, Confidence } from '@/types';
+import { isSameOrigin } from '@/lib/api/sameOrigin';
+import { JsonBodyError, readBoundedJson } from '@/lib/api/jsonBody';
 
 export async function GET(): Promise<NextResponse> {
   const session = await auth();
@@ -60,13 +62,18 @@ function stringList(value: unknown): string[] {
 export async function POST(request: Request): Promise<NextResponse> {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  if (!isSameOrigin(request)) return NextResponse.json({ message: 'Invalid request origin.' }, { status: 403 });
   const userId = session.user.id;
 
   let body: SyncPayload;
   try {
-    body = (await request.json()) as SyncPayload;
-  } catch {
-    return NextResponse.json({ message: 'Invalid JSON body.' }, { status: 400 });
+    body = (await readBoundedJson(request, 256 * 1024)) as SyncPayload;
+  } catch (error) {
+    if (error instanceof JsonBodyError) return NextResponse.json({ message: error.message }, { status: error.status });
+    throw error;
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return NextResponse.json({ message: 'A JSON object is required.' }, { status: 400 });
   }
 
   const sessionId = typeof body.sessionId === 'string' && body.sessionId.length > 0 ? body.sessionId : null;

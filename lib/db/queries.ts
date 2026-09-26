@@ -39,6 +39,8 @@ export interface QuestionFilters {
   /** `'__uncategorised__'` selects rows whose topic is NULL (H5). */
   readonly topics?: readonly string[];
   readonly splits?: readonly Split[];
+  /** Match at least one of these data-quality flags. */
+  readonly flags?: readonly QuestionFlag[];
   /** Restrict to rows carrying at least one data-quality warning flag. */
   readonly onlyFlagged?: boolean;
   /** Exclude duplicates and conflicting-answer records (H6, H9). Default true. */
@@ -94,6 +96,12 @@ function buildWhere(filters: QuestionFilters): WhereClause {
   if (splits.length > 0) {
     clauses.push(`split IN (${splits.map(() => '?').join(',')})`);
     params.push(...splits);
+  }
+
+  const flags = filters.flags ?? [];
+  if (flags.length > 0) {
+    clauses.push(`EXISTS (SELECT 1 FROM json_each(flags) AS flag WHERE flag.value IN (${flags.map(() => '?').join(',')}))`);
+    params.push(...flags);
   }
 
   if (filters.onlyFlagged === true) clauses.push('quality_warning = 1');
@@ -195,6 +203,40 @@ export function listQuestions(
     questions: page.map((r) => questionFromRow(r)),
     nextCursor: hasMore && last !== undefined ? last.__rowid : null,
     total,
+  };
+}
+
+/** Bounded corpus scan for the faculty picker. Unlike regular browse this
+ * returns rowid with each question so a cross-database used filter can stop
+ * mid-window without skipping unexamined corpus rows. */
+export function listFacultyCandidateWindow(
+  filters: QuestionFilters,
+  rawQuery: string,
+  cursor: number | null,
+  limit: number
+): { readonly items: readonly { readonly cursor: number; readonly question: Question }[]; readonly hasMore: boolean } {
+  const match = rawQuery.trim() === '' ? null : toFtsQuery(rawQuery);
+  if (rawQuery.trim() !== '' && match === null) return { items: [], hasMore: false };
+  const where = buildWhere(filters);
+  const clauses = where.sql === '' ? [] : [where.sql.slice('WHERE '.length)];
+  const params: (string | number)[] = [...where.params];
+  if (match !== null) {
+    clauses.push('rowid IN (SELECT rowid FROM questions_fts WHERE questions_fts MATCH ?)');
+    params.push(match);
+  }
+  if (cursor !== null) {
+    clauses.push('rowid > ?');
+    params.push(cursor);
+  }
+  const pageSize = Math.min(Math.max(limit, 1), 100);
+  const rows = getDb().prepare(
+    `SELECT rowid AS __rowid, ${SELECT_COLUMNS} FROM questions
+     ${clauses.length > 0 ? `WHERE ${clauses.join(' AND ')}` : ''}
+     ORDER BY rowid LIMIT ?`
+  ).all(...params, pageSize + 1) as (QuestionRow & { __rowid: number })[];
+  return {
+    items: rows.slice(0, pageSize).map((row) => ({ cursor: row.__rowid, question: questionFromRow(row) })),
+    hasMore: rows.length > pageSize,
   };
 }
 

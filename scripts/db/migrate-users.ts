@@ -1,26 +1,21 @@
 /**
- * Applies lib/db/userSchema.sql to the Neon database named by DATABASE_URL.
+ * Applies lib/db/userSchema.sql only to an explicitly acknowledged database.
  * Idempotent (every statement is `create table/index if not exists`), so
  * it's safe to run again after adding a new statement to the schema file.
  *
- * Usage: pnpm data:users:migrate
+ * Usage: MIGRATION_DATABASE_URL=... MIGRATION_TARGET=host/database
+ *   pnpm data:users:migrate --apply
  */
 
 import fs from 'node:fs';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { neon } from '@neondatabase/serverless';
+import { Pool, neonConfig } from '@neondatabase/serverless';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function main(): Promise<void> {
-  const connectionString = process.env['DATABASE_URL'];
-  if (connectionString === undefined || connectionString.length === 0) {
-    console.error('DATABASE_URL is not set. Add it to .env.local first.');
-    process.exit(1);
-  }
-
-  const sql = neon(connectionString);
   const schemaPath = path.join(__dirname, '..', '..', 'lib', 'db', 'userSchema.sql');
   const schema = fs.readFileSync(schemaPath, 'utf8');
 
@@ -39,17 +34,38 @@ async function main(): Promise<void> {
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
 
-  console.log(`Applying ${statements.length} statement(s) to the user database...`);
-  for (const statement of statements) {
-    const label = statement.split('\n')[0]?.slice(0, 60) ?? statement.slice(0, 60);
-    process.stdout.write(`  ${label}... `);
-    await sql.query(statement);
-    console.log('ok');
+  const hash = createHash('sha256').update(schema).digest('hex');
+  if (!process.argv.includes('--apply')) {
+    console.log(`userSchema.sql  ${hash}  ${statements.length} statements`);
+    console.log('Dry run only. No database connection was made.');
+    return;
   }
-  console.log('Done.');
+  const connectionString = process.env['MIGRATION_DATABASE_URL'];
+  if (!connectionString) throw new Error('MIGRATION_DATABASE_URL is required for --apply; DATABASE_URL is never used.');
+  const url = new URL(connectionString);
+  if (!['postgres:', 'postgresql:'].includes(url.protocol)) throw new Error('MIGRATION_DATABASE_URL must be a Postgres URL.');
+  const target = `${url.hostname}/${decodeURIComponent(url.pathname.slice(1))}`;
+  if (process.env['MIGRATION_TARGET'] !== target) throw new Error(`Set MIGRATION_TARGET=${target} to acknowledge the exact target database.`);
+  neonConfig.webSocketConstructor = WebSocket;
+  const pool = new Pool({ connectionString, max: 1 });
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    await client.query('select pg_advisory_xact_lock(784650190)');
+    console.log(`Applying ${statements.length} statement(s) to ${target}...`);
+    for (const statement of statements) await client.query(statement);
+    await client.query('commit');
+    console.log('Done.');
+  } catch (error) {
+    await client.query('rollback');
+    throw error;
+  } finally {
+    client.release();
+    await pool.end();
+  }
 }
 
 void main().catch((err: unknown) => {
-  console.error(err);
-  process.exit(1);
+  console.error(err instanceof Error ? err.message : String(err));
+  process.exitCode = 1;
 });

@@ -19,7 +19,7 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { authConfig } from './auth.config';
-import { upsertGoogleUser, verifyCredentials } from '@/lib/db/userQueries';
+import { upsertVerifiedGoogleUser, verifyCredentials } from '@/lib/db/userQueries';
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -42,23 +42,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    ...authConfig.callbacks,
+    signIn({ account, profile }) {
+      if (account?.provider !== 'google') return true;
+      return profile?.['email_verified'] === true && typeof account.providerAccountId === 'string';
+    },
     async jwt({ token, account, user }) {
       // Only runs on the request where sign-in actually happens — `account`
       // is absent on every later token refresh, so this upsert isn't repeated
       // on every request.
-      if (account?.provider === 'google' && user?.email) {
-        const dbUser = await upsertGoogleUser(user.email, user.name ?? null, user.image ?? null);
+      if (account?.provider === 'google' && user?.email && account.providerAccountId) {
+        const dbUser = await upsertVerifiedGoogleUser(
+          account.providerAccountId, user.email, user.name ?? null, user.image ?? null
+        );
         token.id = dbUser.id;
+        token.loginProvider = 'google';
       } else if (account?.provider === 'credentials' && user?.id) {
         token.id = user.id;
+        token.loginProvider = 'credentials';
       }
       return token;
-    },
-    session({ session, token }) {
-      if (typeof token.id === 'string') {
-        session.user.id = token.id;
-      }
-      return session;
     },
   },
 });

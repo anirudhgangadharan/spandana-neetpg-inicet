@@ -2,7 +2,7 @@
  * Typed queries against the `notes` table (authored explanations plan) —
  * editorial notes attached to a single question or to a whole subject/topic
  * concept. Written by admins only; that check lives at the API route
- * (lib/auth/admin.ts), not here — this module trusts its input the same way
+ * (lib/auth/roles.ts), not here — this module trusts its input the same way
  * lib/db/userQueries.ts trusts VerifiedAttemptEvent.
  */
 

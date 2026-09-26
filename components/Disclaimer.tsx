@@ -169,8 +169,10 @@ export function DisclaimerFooter(): React.JSX.Element {
         <a href="https://github.com/jind11/MedQA" target="_blank" rel="noreferrer noopener">
           Dataset repository
         </a>
-        . No licence file accompanied the copy of this dataset used to build this corpus; a specific
-        redistribution licence is not asserted here.
+        {' · '}
+        <a href="https://github.com/jind11/MedQA/blob/master/LICENSE" target="_blank" rel="noreferrer noopener">
+          Licence (MIT)
+        </a>
       </p>
       <p style={{ marginTop: 'var(--space-2)' }}>
         Answers come from the datasets alone. Nothing is generated, inferred, or auto-corrected; questions with
@@ -181,6 +183,10 @@ export function DisclaimerFooter(): React.JSX.Element {
         <a href="https://github.com/anirudhgangadharan" target="_blank" rel="noreferrer noopener">
           GitHub
         </a>
+        {' · '}
+        <a href="/privacy">Privacy</a>
+        {' · '}
+        <a href="/delete-account">Delete account</a>
       </p>
     </footer>
   );

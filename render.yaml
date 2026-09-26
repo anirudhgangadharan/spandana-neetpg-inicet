@@ -22,7 +22,18 @@ services:
         sync: false
       - key: AUTH_GOOGLE_SECRET
         sync: false
-      # Comma-separated list of emails allowed to write notes at /admin/notes
-      # (authored explanations plan). Checked via lib/auth/admin.ts.
+      # Stable Google provider subject for the one super-admin identity.
+      - key: SUPER_ADMIN_GOOGLE_SUB
+        sync: false
+      # Long random bearer token for the scheduled expired-attempt endpoint.
+      - key: ATTEMPT_SWEEP_SECRET
+        sync: false
+      # Public operator identity and privacy contact shown in the policy and required by readiness.
+      - key: PRIVACY_OPERATOR_NAME
+        sync: false
+      - key: PRIVACY_CONTACT_EMAIL
+        sync: false
+      # Optional legacy verified-Google emails allowed to write editorial notes.
+      # Prefer rows in editorial_note_grants for new installations.
       - key: ADMIN_EMAILS
         sync: false

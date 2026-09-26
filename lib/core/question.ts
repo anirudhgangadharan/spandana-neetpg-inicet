@@ -144,3 +144,29 @@ export function questionFromRow(row: QuestionRow): Question {
     sessionEligible: row.session_eligible === 1,
   });
 }
+
+/** Server persistence shape for a frozen faculty assessment. Keeping the
+ * answer read here preserves the corpus correctness boundary. */
+export function moduleSnapshotFromQuestion(question: Question): {
+  readonly id: string;
+  readonly source: QuestionSource;
+  readonly stem: string;
+  readonly options: readonly [string, string, string, string];
+  readonly answer: AnswerIndex;
+  readonly explanation: string | null;
+  readonly subject: string;
+  readonly topic: string | null;
+  readonly flags: readonly QuestionFlag[];
+} {
+  return {
+    id: question.id,
+    source: question.source,
+    stem: question.stem,
+    options: question.options,
+    answer: question.answerIndex,
+    explanation: question.explanation,
+    subject: question.subject,
+    topic: question.topic,
+    flags: question.flags,
+  };
+}

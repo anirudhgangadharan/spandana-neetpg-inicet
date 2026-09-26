@@ -7,7 +7,10 @@
   "scripts": {
     "data:forensics": "node scripts/forensics/inspect.mjs",
     "data:build": "tsx scripts/etl/build.ts",
-    "data:users:migrate": "tsx --env-file=.env.local scripts/db/migrate-users.ts",
+    "data:users:migrate": "tsx scripts/db/migrate-users.ts",
+    "data:modules:migrate": "tsx scripts/db/migrate-modules.ts",
+    "data:modules:rehearse": "tsx scripts/db/rehearse-migrations.ts",
+    "data:modules:expire": "tsx scripts/db/expire-module-attempts.ts",
     "analytics:hard-questions": "tsx --env-file=.env.local scripts/analytics/hard-questions-report.ts",
     "analytics:dropoff": "tsx --env-file=.env.local scripts/analytics/dropoff-report.ts",
     "dev": "next dev",
@@ -19,7 +22,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/e2e/run.mjs",
     "verify": "pnpm typecheck && pnpm lint:invariants && pnpm test"
   },
   "dependencies": {
@@ -37,6 +40,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.2",
+    "@electric-sql/pglite": "0.5.8",
     "@eslint/eslintrc": "^3.3.6",
     "@playwright/test": "^1.56.0",
     "@types/better-sqlite3": "^7.6.13",

@@ -78,7 +78,7 @@ create index if not exists attempt_events_session_id_idx on attempt_events (sess
 
 -- Editorial notes attached to a single question or to a whole
 -- subject/topic concept (authored explanations plan). Not user-generated —
--- written by admins only (enforced at the API route, see lib/auth/admin.ts)
+-- written by verified editorial-note editors only (enforced at the API route)
 -- — so unlike attempt_events this table has no user_id at all.
 create table if not exists notes (
   id          uuid primary key default gen_random_uuid(),

@@ -179,3 +179,14 @@ export async function clearAllProgress(): Promise<void> {
   const db = await getStorage();
   await Promise.all([db.clear('attempts'), db.clear('bookmarks')]);
 }
+
+/** Account deletion must discard, not sync, queued and persisted browser data. */
+export async function discardAllLocalProgress(): Promise<void> {
+  if (flushTimer !== null) clearTimeout(flushTimer);
+  flushTimer = null;
+  pendingAttempts.clear();
+  pendingBookmarkPuts.clear();
+  pendingBookmarkDeletes.clear();
+  const db = await getStorage();
+  await Promise.all([db.clear('attempts'), db.clear('bookmarks')]);
+}

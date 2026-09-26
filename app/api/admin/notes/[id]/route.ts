@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
-import { isAdminEmail } from '@/lib/auth/admin';
+import { getCurrentActor } from '@/lib/auth/roles';
 import { deleteNote, updateNote, type NoteScope, type UpdateNoteInput } from '@/lib/db/notesQueries';
+import { isSameOrigin } from '@/lib/api/sameOrigin';
+import { JsonBodyError, readBoundedJson } from '@/lib/api/jsonBody';
 
 async function requireAdmin(): Promise<boolean> {
-  const session = await auth();
-  return session?.user !== undefined && isAdminEmail(session.user.email);
+  const actor = await getCurrentActor();
+  return actor?.canEditNotes === true;
 }
 
 interface PatchBody {
@@ -31,13 +32,18 @@ function imageUrlList(value: unknown): string[] | null {
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   if (!(await requireAdmin())) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+  if (!isSameOrigin(request)) return NextResponse.json({ message: 'Invalid request origin.' }, { status: 403 });
   const { id } = await params;
 
   let body: PatchBody;
   try {
-    body = (await request.json()) as PatchBody;
-  } catch {
-    return NextResponse.json({ message: 'Invalid JSON body.' }, { status: 400 });
+    body = (await readBoundedJson(request, 128 * 1024)) as PatchBody;
+  } catch (error) {
+    if (error instanceof JsonBodyError) return NextResponse.json({ message: error.message }, { status: error.status });
+    throw error;
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return NextResponse.json({ message: 'A JSON object is required.' }, { status: 400 });
   }
 
   const patch: UpdateNoteInput = {};
@@ -58,8 +64,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   return NextResponse.json({ note });
 }
 
-export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   if (!(await requireAdmin())) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
+  if (!isSameOrigin(request)) return NextResponse.json({ message: 'Invalid request origin.' }, { status: 403 });
   const { id } = await params;
   await deleteNote(id);
   return NextResponse.json({ ok: true });

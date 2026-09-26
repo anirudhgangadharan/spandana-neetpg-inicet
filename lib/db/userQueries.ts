@@ -6,6 +6,7 @@
 
 import bcrypt from 'bcryptjs';
 import { sql } from './userClient';
+import { withUserTransaction } from './transactionClient';
 
 export interface DbUser {
   readonly id: string;
@@ -74,18 +75,93 @@ export async function createUserWithPassword(
   }
 }
 
-/** Upsert path for Google sign-in, called from the `jwt` callback in auth.ts. */
-export async function upsertGoogleUser(email: string, name: string | null, image: string | null): Promise<DbUser> {
-  const rows = (await sql.query(
-    `insert into users (email, name, image)
-     values ($1, $2, $3)
-     on conflict (email) do update set name = excluded.name, image = excluded.image
-     returning id, email, name, image`,
-    [email, name, image]
-  )) as UserRow[];
-  const row = rows[0];
-  if (row === undefined) throw new Error('upsert returned no row');
-  return { id: row.id, email: row.email, name: row.name, image: row.image };
+export class AccountLinkRequiredError extends Error {
+  constructor() {
+    super('This email belongs to a password account. Use password sign-in; automatic Google linking is unavailable.');
+    this.name = 'AccountLinkRequiredError';
+  }
+}
+
+/**
+ * Google email is accepted only after the provider confirmed it. The stable
+ * provider subject is the identity key. A legacy password account at the same
+ * address is deliberately not linked automatically: signup does not verify
+ * email ownership, so email equality would transfer that account's data.
+ */
+export async function upsertVerifiedGoogleUser(
+  subject: string,
+  email: string,
+  name: string | null,
+  image: string | null
+): Promise<DbUser> {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!subject || !normalizedEmail) throw new Error('Verified Google subject and email are required.');
+
+  return withUserTransaction(async (client) => {
+    // Serialize first-time sign-ins for the same email; the unique constraints
+    // remain the final backstop if a different identity races this request.
+    await client.query('select pg_advisory_xact_lock(hashtextextended($1, 0))', [normalizedEmail]);
+    const linked = await client.query<{ user_id: string }>(
+      `select user_id from auth_identities
+       where provider = 'google' and provider_subject = $1 for update`,
+      [subject]
+    );
+
+    let userId = linked.rows[0]?.user_id;
+    if (!userId) {
+      const existing = await client.query<{ id: string; password_hash: string | null }>(
+        'select id, password_hash from users where email = $1 for update', [normalizedEmail]
+      );
+      const account = existing.rows[0];
+      if (account?.password_hash) throw new AccountLinkRequiredError();
+      if (account) {
+        userId = account.id;
+      } else {
+        const created = await client.query<{ id: string }>(
+          'insert into users (email, name, image) values ($1, $2, $3) returning id',
+          [normalizedEmail, name, image]
+        );
+        userId = created.rows[0]?.id;
+      }
+      if (!userId) throw new Error('Google account creation returned no user ID.');
+      await client.query(
+        `insert into auth_identities (provider, provider_subject, user_id, verified_email)
+         values ('google', $1, $2, $3)`,
+        [subject, userId, normalizedEmail]
+      );
+    } else {
+      await client.query(
+        `update auth_identities set verified_email = $2, verified_at = now()
+         where provider = 'google' and provider_subject = $1`,
+        [subject, normalizedEmail]
+      );
+    }
+
+    const updated = await client.query<UserRow>(
+      `update users set email = $2, name = $3, image = $4
+       where id = $1 and password_hash is null
+       returning id, email, name, image, password_hash`,
+      [userId, normalizedEmail, name, image]
+    );
+    const row = updated.rows[0];
+    if (!row) throw new AccountLinkRequiredError();
+
+    // A preapproved email becomes bound only after the Google identity is
+    // verified. Revoke any binding to an address the identity no longer
+    // controls before attaching a new grant; status remains an admin choice.
+    await client.query(
+      `update faculty_grants set user_id = null, updated_at = now()
+       where user_id = $1 and email <> $2`,
+      [userId, normalizedEmail]
+    );
+    // A revoked grant is never reactivated by a later sign-in.
+    await client.query(
+      `update faculty_grants set user_id = $1, updated_at = now()
+       where email = $2 and status = 'active' and (user_id is null or user_id = $1)`,
+      [userId, normalizedEmail]
+    );
+    return { id: row.id, email: row.email, name: row.name, image: row.image };
+  });
 }
 
 function isUniqueViolation(err: unknown): boolean {

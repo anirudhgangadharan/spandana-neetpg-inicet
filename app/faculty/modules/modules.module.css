@@ -1,0 +1,42 @@
+.page { max-width: 1180px; margin: 0 auto; padding: var(--space-8) var(--space-4); display: grid; gap: var(--space-6); }
+.intro, .muted { color: var(--text-secondary); }
+.muted { font-size: var(--text-callout); }
+.create, .panel { padding: var(--space-6); display: grid; gap: var(--space-3); }
+.create label, .field label { font-weight: var(--weight-medium); }
+.formRow { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: stretch; }
+.formRow input { flex: 1 1 280px; }
+.list { list-style: none; padding: 0; display: grid; gap: var(--space-3); margin-top: var(--space-3); }
+.moduleCard { padding: var(--space-4); display: grid; gap: var(--space-2); }
+.cardHeading { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.cardHeading a { font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
+.editorHeader { display: grid; gap: var(--space-2); }
+.builderGrid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+.fieldGrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--space-4); }
+.field { display: grid; gap: var(--space-2); min-width: 0; }
+.field input, .field textarea, .field select, .formRow input, .searchRow input {
+  min-width: 0; width: 100%; min-height: var(--tap-min); border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-sm); background: var(--surface); padding: var(--space-2) var(--space-3);
+}
+.field textarea { min-height: 90px; resize: vertical; }
+.field small { color: var(--text-secondary); }
+.checkbox { display: flex; align-items: flex-start; gap: var(--space-2); line-height: 1.4; }
+.checkbox input { width: 18px; height: 18px; margin-top: 2px; flex: none; }
+.buttonRow { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.error { background: var(--warning-soft); color: var(--text-primary); padding: var(--space-3); border-radius: var(--radius-sm); }
+.notice { background: var(--accent-soft); padding: var(--space-3); border-radius: var(--radius-sm); }
+.stats { display: flex; flex-wrap: wrap; gap: var(--space-3); color: var(--text-secondary); font-size: var(--text-callout); }
+.pickerFilters { display: grid; gap: var(--space-3); }
+.searchRow { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.searchRow input { flex: 1 1 220px; }
+.candidateList, .selectedList { list-style: none; padding: 0; display: grid; gap: var(--space-2); }
+.candidate, .selected { border: 1px solid var(--hairline); border-radius: var(--radius-sm); padding: var(--space-3); display: grid; gap: var(--space-2); }
+.candidateHead, .selectedHead { display: flex; justify-content: space-between; gap: var(--space-3); align-items: flex-start; flex-wrap: wrap; }
+.stem { overflow-wrap: anywhere; white-space: pre-wrap; }
+.meta { color: var(--text-secondary); font-size: var(--text-caption); }
+.options { padding-left: var(--space-5); display: grid; gap: var(--space-1); }
+.options li { white-space: pre-wrap; overflow-wrap: anywhere; }
+.shareRow { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+.shareRow code { overflow-wrap: anywhere; flex: 1 1 320px; }
+.divider { border: 0; border-top: 1px solid var(--hairline); }
+.danger { color: var(--incorrect); }
+@media (min-width: 900px) { .builderGrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }

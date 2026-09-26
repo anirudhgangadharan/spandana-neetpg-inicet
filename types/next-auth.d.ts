@@ -10,6 +10,7 @@ declare module 'next-auth' {
   interface Session {
     user: {
       id: string;
+      loginProvider?: 'google' | 'credentials';
     } & DefaultSession['user'];
   }
 }
@@ -17,5 +18,6 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     id?: string;
+    loginProvider?: 'google' | 'credentials';
   }
 }

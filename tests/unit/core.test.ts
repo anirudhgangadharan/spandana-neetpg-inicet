@@ -7,7 +7,8 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 
-import { correctOptionPosition, correctOptionText, evaluate, isCorrect } from '@/lib/core/verdict';
+import { correctOptionPosition, correctOptionText, evaluate, isCorrect, scoreModuleAnswers } from '@/lib/core/verdict';
+import { parseAttemptRecord } from '@/lib/core/attempt-record';
 import {
   ANSWER_INDICES,
   AnswerNormalisationError,
@@ -86,6 +87,61 @@ describe('evaluate', () => {
       }),
       { numRuns: 300 }
     );
+  });
+});
+
+describe('faculty-module scoring', () => {
+  it('applies configurable correct, wrong, and blank marks', () => {
+    expect(scoreModuleAnswers([
+      { answer: 0, selected: 0 },
+      { answer: 1, selected: 2 },
+      { answer: 3, selected: null },
+    ], { correct: 4, wrong: -1, blank: 0 })).toEqual({
+      score: 3, correctCount: 1, wrongCount: 1, unansweredCount: 1,
+    });
+  });
+
+  it('fails closed on an invalid frozen answer or student selection', () => {
+    expect(() => scoreModuleAnswers([{ answer: 4, selected: 0 }], { correct: 4, wrong: -1, blank: 0 }))
+      .toThrow('Invalid frozen module answer or response.');
+    expect(() => scoreModuleAnswers([{ answer: 0, selected: 4 }], { correct: 4, wrong: -1, blank: 0 }))
+      .toThrow('Invalid frozen module answer or response.');
+  });
+});
+
+describe('attempt record validation', () => {
+  const valid = {
+    questionId: 'question-1', selectedIndex: 2, verdict: 'correct', attemptedAt: 10,
+    durationMs: 20, bookmarked: true, confidence: 'know', answerIndex: 2,
+  };
+
+  it('returns only the validated client-safe fields', () => {
+    expect(parseAttemptRecord(valid)).toEqual({
+      questionId: 'question-1', selectedIndex: 2, verdict: 'correct', attemptedAt: 10,
+      durationMs: 20, bookmarked: true, confidence: 'know',
+    });
+    expect(parseAttemptRecord({ ...valid, selectedIndex: null, confidence: undefined, bookmarked: false }))
+      .toMatchObject({ selectedIndex: null, confidence: null, bookmarked: false });
+    expect(parseAttemptRecord({ ...valid, confidence: null })?.confidence).toBeNull();
+  });
+
+  it('rejects non-objects, missing identity, invalid selections, and invalid verdicts', () => {
+    for (const value of [null, 'record', 1]) expect(parseAttemptRecord(value)).toBeNull();
+    expect(parseAttemptRecord({ ...valid, questionId: '' })).toBeNull();
+    expect(parseAttemptRecord({ ...valid, questionId: 4 })).toBeNull();
+    expect(parseAttemptRecord({ ...valid, selectedIndex: 4 })).toBeNull();
+    expect(parseAttemptRecord({ ...valid, verdict: 'maybe' })).toBeNull();
+    expect(parseAttemptRecord({ ...valid, verdict: 1 })).toBeNull();
+  });
+
+  it('rejects non-finite, negative, and mistyped timing plus invalid confidence', () => {
+    for (const attemptedAt of ['10', Number.NaN, -1]) {
+      expect(parseAttemptRecord({ ...valid, attemptedAt })).toBeNull();
+    }
+    for (const durationMs of ['20', Number.POSITIVE_INFINITY, -1]) {
+      expect(parseAttemptRecord({ ...valid, durationMs })).toBeNull();
+    }
+    expect(parseAttemptRecord({ ...valid, confidence: 'certain' })).toBeNull();
   });
 });
 

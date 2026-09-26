@@ -46,13 +46,13 @@ export function withCorpus(handler: () => NextResponse): NextResponse {
       return NextResponse.json<ApiErrorBody>(
         {
           error: 'corpus_unavailable',
-          message: err.message,
-          problems: err.problems,
+          message: process.env.NODE_ENV === 'production' ? 'The question corpus is unavailable.' : err.message,
+          ...(process.env.NODE_ENV === 'production' ? {} : { problems: err.problems }),
         },
         { status: 503, headers: { 'Cache-Control': 'no-store' } }
       );
     }
-    console.error('[api] unhandled error', err);
+    console.error('[api] unhandled error');
     return NextResponse.json<ApiErrorBody>(
       { error: 'internal_error', message: 'The server could not complete the request.' },
       { status: 500, headers: { 'Cache-Control': 'no-store' } }
@@ -71,13 +71,13 @@ export async function withCorpusAsync(handler: () => Promise<NextResponse>): Pro
       return NextResponse.json<ApiErrorBody>(
         {
           error: 'corpus_unavailable',
-          message: err.message,
-          problems: err.problems,
+          message: process.env.NODE_ENV === 'production' ? 'The question corpus is unavailable.' : err.message,
+          ...(process.env.NODE_ENV === 'production' ? {} : { problems: err.problems }),
         },
         { status: 503, headers: { 'Cache-Control': 'no-store' } }
       );
     }
-    console.error('[api] unhandled error', err);
+    console.error('[api] unhandled error');
     return NextResponse.json<ApiErrorBody>(
       { error: 'internal_error', message: 'The server could not complete the request.' },
       { status: 500, headers: { 'Cache-Control': 'no-store' } }
