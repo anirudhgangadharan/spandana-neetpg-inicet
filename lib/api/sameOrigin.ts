@@ -3,7 +3,14 @@ export function isSameOrigin(request: Request): boolean {
   const origin = request.headers.get('origin');
   if (origin === null) return false;
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    const submittedOrigin = new URL(origin).origin;
+    if (submittedOrigin === new URL(request.url).origin) return true;
+
+    // Reverse proxies can expose an internal request URL to Next.js while the
+    // browser correctly sends the public origin. AUTH_URL is the operator-set
+    // canonical origin and is safer than trusting forwarded host headers.
+    const canonicalUrl = process.env.AUTH_URL;
+    return canonicalUrl !== undefined && submittedOrigin === new URL(canonicalUrl).origin;
   } catch {
     return false;
   }
