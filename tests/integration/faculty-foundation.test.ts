@@ -27,6 +27,7 @@ beforeEach(async () => {
   await db.exec(await readFile(new URL('../../scripts/db/migrations/002_faculty_builder.sql', import.meta.url), 'utf8'));
   await db.exec(await readFile(new URL('../../scripts/db/migrations/003_student_attempts.sql', import.meta.url), 'utf8'));
   await db.exec(await readFile(new URL('../../scripts/db/migrations/004_faculty_analytics.sql', import.meta.url), 'utf8'));
+  await db.exec(await readFile(new URL('../../scripts/db/migrations/005_guest_participants_corrections.sql', import.meta.url), 'utf8'));
   mocks.query.mockImplementation(async (statement: string, params: unknown[] = []) =>
     (await db.query(statement, params)).rows
   );

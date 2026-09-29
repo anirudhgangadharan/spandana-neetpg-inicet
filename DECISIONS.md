@@ -799,3 +799,15 @@ The PGlite test drives 50 distinct start/save/submit sequences and duplicate-sta
 ## D-035 — The web release and Google Play release are separate products · ACCEPTED
 
 Responsive web UI, a production container, public privacy/deletion pages, and Play policy research do not create an Android application. This repository has no Android project, AAB, signing, package identity, deep-link/auth handoff, Android lifecycle validation, Play declarations, store listing, or testing-track evidence. `GOOGLE_PLAY_RELEASE.md` records the official current requirements and the remaining work; no Android or Play-readiness claim is made.
+
+---
+
+## D-036 — Guest sessions and final-only answer submission · ACCEPTED
+
+Shared faculty links create a module-scoped participant with self-reported identifiers and an opaque, hashed cookie session. The three identifiers are not authentication. A one-time faculty-issued recovery code rotates all prior guest sessions. The server creates an attempt at start to enforce its deadline and limit, but the current browser stores choices in session storage without identity and writes them only in one atomic final submission. A ten-second server receipt grace covers network transit after the visible deadline; it is not an extension of answering time. Submission retries return the existing result. A lost browser copy or failed late delivery can leave an expired, unanswered attempt. Hosted capacity must be measured for synchronized deadline submissions.
+
+---
+
+## D-037 — Corrections are audited overlays on the immutable corpus · ACCEPTED
+
+Faculty with an owned draft can append a versioned question correction with a reason. Future practice and module creation resolve the latest correction over the hash-verified source. Publication freezes the resolved version in the module snapshot; existing published tests and scores do not change. A rollback appends another audit version. Corrections are active globally upon save, without institutional approval. A corpus change requires explicit correction review before applying old overrides.

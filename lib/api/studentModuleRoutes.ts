@@ -4,7 +4,7 @@ import { StudentModuleInputError } from '@/lib/student/moduleInput';
 
 export const studentNoStore = { 'Cache-Control': 'no-store' };
 
-export async function studentJson(request: Request): Promise<unknown> {
+export async function studentJson(request: Request, maxBytes = 2048): Promise<unknown> {
   const reader = request.body?.getReader();
   if (!reader) throw new StudentModuleInputError('A small JSON body is required.');
   const decoder = new TextDecoder();
@@ -14,7 +14,7 @@ export async function studentJson(request: Request): Promise<unknown> {
     const { done, value } = await reader.read();
     if (done) break;
     bytes += value.byteLength;
-    if (bytes > 2048) {
+    if (bytes > maxBytes) {
       await reader.cancel();
       throw new StudentModuleInputError('Answer request is too large.');
     }

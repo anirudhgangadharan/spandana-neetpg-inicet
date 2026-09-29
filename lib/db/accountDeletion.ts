@@ -22,9 +22,17 @@ export async function deleteAccount(userId: string, confirmedEmail: string): Pro
     if (!email || email.toLowerCase() !== confirmedEmail.trim().toLowerCase()) {
       return { deleted: false, ownedModulesDeleted: 0 };
     }
+    const guestUsers = await client.query<{ student_user_id: string }>(
+      `select gp.student_user_id from guest_module_participants gp
+       join faculty_modules fm on fm.id = gp.module_id where fm.owner_user_id = $1::uuid`, [userId]
+    );
     const modules = await client.query(
       'delete from faculty_modules where owner_user_id = $1::uuid', [userId]
     );
+    if (guestUsers.rows.length > 0) {
+      await client.query('delete from users where id = any($1::uuid[])',
+        [guestUsers.rows.map((row) => row.student_user_id)]);
+    }
     // A faculty access email is personal administrative data. Deletion frees
     // the slot and requires an explicit new grant if this person returns.
     await client.query(

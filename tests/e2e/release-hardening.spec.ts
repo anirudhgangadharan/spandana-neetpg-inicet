@@ -51,6 +51,31 @@ test('faculty builds and publishes a frozen module through the browser UI', asyn
   expect(publishedBody).toEqual({ revision: 1, action: 'publish', acceptReuse: false });
 });
 
+test('faculty can compare and save a corrected draft question with a reason', async ({ page }) => {
+  let correction: unknown = null;
+  await page.route(`**/api/faculty/modules/${moduleId}/questions/question-1/correction`, (route) => {
+    if (route.request().method() === 'GET') return route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ source: { stem: 'Original clinical question?', options: ['Alpha', 'Beta', 'Gamma', 'Delta'],
+        correctOption: 1, explanation: null }, current: null, history: [] }) });
+    correction = route.request().postDataJSON();
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ module: {
+      ...baseModule, revision: 2, questionCount: 1, selectedQuestions: [{ ...selected,
+        stem: 'Corrected clinical question?', correctOption: 2, correctionVersion: 1 }],
+    } }) });
+  });
+  await page.goto('/e2e-harness/release?view=correction');
+  await page.getByRole('button', { name: 'Correct question' }).click();
+  await expect(page.getByRole('complementary', { name: 'Original source version' })).toBeVisible();
+  await page.getByRole('textbox', { name: 'Question text', exact: true }).fill('Corrected clinical question?');
+  await page.getByRole('combobox', { name: 'Correct option' }).selectOption('2');
+  await page.getByRole('textbox', { name: 'Correction reason (required)' }).fill('Source answer key is incorrect.');
+  await page.getByRole('button', { name: 'Save global correction' }).click();
+  await expect(page.getByText('Correction saved to the question pool and current draft.')).toBeVisible();
+  expect(correction).toMatchObject({ revision: 1, expectedVersion: 0, stem: 'Corrected clinical question?',
+    correctOption: 2, reason: 'Source answer key is incorrect.' });
+  await expectA11y(page);
+});
+
 test('unauthenticated privileged and attempt APIs fail closed', async ({ request }) => {
   expect((await request.get('/api/faculty/analytics')).status()).toBe(403);
   expect((await request.get('/api/module-attempts/1de98e87-5a44-4d58-9a42-85ff6418c89b')).status()).toBe(404);

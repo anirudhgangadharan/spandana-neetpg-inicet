@@ -1,6 +1,7 @@
 import type { Question, QuestionFlag, QuestionSource, Split } from '@/types';
 import { listFacultyCandidateWindow } from './queries';
 import { sql } from './userClient';
+import { effectiveQuestions } from './questionCorrections';
 
 export interface FacultyCandidate {
   readonly id: string;
@@ -76,13 +77,14 @@ export async function listFacultyCandidates(filter: FacultyCandidateFilter): Pro
     }, filter.search, cursor, Math.min(100, 500 - scanned));
     if (page.items.length === 0) return { candidates, nextCursor: null, scanned };
     const used = await usedQuestionIds(page.items.map((item) => item.question.id), filter.moduleId);
+    const resolved = await effectiveQuestions(page.items.map((item) => item.question));
     for (let index = 0; index < page.items.length; index += 1) {
       const item = page.items[index]!;
       cursor = item.cursor;
       scanned += 1;
       const usedElsewhere = used.has(item.question.id);
       if (!filter.onlyUnused || !usedElsewhere) {
-        candidates.push(candidateFromQuestion(item.question, usedElsewhere));
+        candidates.push(candidateFromQuestion(resolved.questions[index]!, usedElsewhere));
       }
       if (candidates.length >= filter.limit) {
         return {

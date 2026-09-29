@@ -38,7 +38,7 @@ async function databaseReady(): Promise<boolean> {
       }[];
     if (!rows[0]?.users_present || !rows[0].migrations_present) return false;
     const migration = await sql.query(
-      "select 1 from faculty_schema_migrations where name = '004_faculty_analytics.sql' limit 1"
+      "select 1 from faculty_schema_migrations where name = '005_guest_participants_corrections.sql' limit 1"
     ) as unknown[];
     return migration.length === 1;
   } catch {
@@ -70,7 +70,7 @@ export async function GET(): Promise<NextResponse> {
             },
       integrity:
         status.integrity === null ? null : { ok: status.integrity.ok, rowCount: status.integrity.rowCount },
-      database: { ready: database, requiredMigration: '004_faculty_analytics.sql' },
+      database: { ready: database, requiredMigration: '005_guest_participants_corrections.sql' },
       configuration: { ready: configuration },
     },
     { status: ready ? 200 : 503, headers: { 'Cache-Control': 'no-store' } }

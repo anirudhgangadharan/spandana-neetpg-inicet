@@ -36,7 +36,7 @@ const moduleAnalytics: ModuleAnalytics = {
   completionTimes: { sampleSize: 2, medianSeconds: 90, distribution: [{ label: '60–120 seconds', count: 2 }] },
   questions: [{ ...breakdown, label: 'Which finding is most likely?', position: 1, questionId: 'q1', subject: 'Medicine',
     topic: 'Cardiology', estimatedTimeMs: 30_000, timingSamples: 2 }], subjects: [breakdown], topics: [{ ...breakdown, label: 'Cardiology' }],
-  participants: { page: 1, hasNext: false, search: '', items: [{ attemptId: 'a1', studentName: 'Ada', studentEmail: 'ada@example.org',
+  participants: { page: 1, hasNext: false, search: '', items: [{ attemptId: 'a1', studentName: 'Ada', studentEmail: 'ada@example.org', registrationNumber: null, rollNumber: null, guestParticipantId: null,
     attemptNumber: 1, status: 'submitted', startedAt: '2030-01-01T10:00:00.000Z', completedAt: '2030-01-01T10:01:00.000Z',
     elapsedSeconds: 60, score: 4, correctCount: 1, wrongCount: 0, unansweredCount: 0 }] },
 };
@@ -52,6 +52,13 @@ export default async function ReleaseHarness({ searchParams }: {
   if (process.env['E2E_TEST_MODE'] !== '1') notFound();
   const view = (await searchParams).view;
   if (view === 'builder') return <main id="main" className={moduleStyles.page}><ModuleBuilder initialModule={draft} facets={facets} /></main>;
+  if (view === 'correction') return <main id="main" className={moduleStyles.page}><ModuleBuilder initialModule={{
+    ...draft, revision: 1, questionCount: 1, selectedQuestions: [{
+      id: 'question-1', position: 1, source: 'medmcqa', stem: 'Original clinical question?',
+      options: ['Alpha', 'Beta', 'Gamma', 'Delta'], correctOption: 1, explanation: null,
+      correctionVersion: 0, subject: 'Medicine', topic: 'Cardiology', flags: [], usedElsewhere: false,
+    }],
+  }} facets={facets} /></main>;
   if (view === 'analytics') return <main id="main" className={analyticsStyles.page}><ModuleAnalyticsView analytics={moduleAnalytics} /></main>;
   if (view === 'overview') return <main id="main" className={analyticsStyles.page}><FacultyOverviewView analytics={overview} /></main>;
   if (view === 'account') return <main id="main" className={accountStyles.page}><AccountDeletionClient email="faculty@example.org" isFaculty /></main>;

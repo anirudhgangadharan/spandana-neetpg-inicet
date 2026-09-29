@@ -1,14 +1,16 @@
 import Link from 'next/link';
 import type { StudentModuleLanding } from '@/lib/db/studentModules';
 import { StartModuleButton } from './StartModuleButton';
+import { GuestRegistration } from './GuestRegistration';
 import styles from '@/app/module-exam.module.css';
 
-export function StudentModuleLandingView({ landing, token }: {
+export function StudentModuleLandingView({ landing, token, registered = true }: {
   readonly landing: Exclude<StudentModuleLanding, { state: 'unavailable' }>;
   readonly token: string;
+  readonly registered?: boolean;
 }): React.JSX.Element {
   return <main id="main" className={styles.page}>
-    <Link href="/">← Back to practice</Link>
+    {registered ? <Link href="/">← Back to practice</Link> : <Link href="/privacy">Privacy notice</Link>}
     {landing.state === 'resume' ? <section className={`card ${styles.panel}`}>
       <h1>Continue your attempt</h1>
       <p>Your existing attempt is still available. Its original server deadline has not changed.</p>
@@ -40,8 +42,8 @@ export function StudentModuleLandingView({ landing, token }: {
           <div><dt>Closes</dt><dd><time dateTime={landing.closesAt}>{new Date(landing.closesAt).toUTCString()}</time></dd></div>
         </dl>
         {landing.instructions ? <div className={styles.instructions}><h3>Instructions</h3><p>{landing.instructions}</p></div> : null}
-        <p className={styles.notice}>Your professor can see your identity, responses, and score. Answers save to the server when connected. Changes made offline cannot be accepted after the deadline.</p>
-        {landing.activeAttemptId ? <Link href={`/module-attempts/${landing.activeAttemptId}`}>Resume current attempt</Link>
+        <p className={styles.notice}>Your professor can see your identity, submitted answers, and score. Answers remain only in this browser until final submission. Closing the browser or losing connectivity before submission may lose them.</p>
+        {!registered ? <GuestRegistration token={token} /> : landing.activeAttemptId ? <Link href={`/module-attempts/${landing.activeAttemptId}`}>Resume current attempt</Link>
           : landing.attemptsUsed < landing.maxAttempts ? <StartModuleButton token={token} />
             : <p>You have used all permitted attempts.</p>}
         {landing.lastAttemptId && landing.lastAttemptId !== landing.activeAttemptId ? <p><Link href={`/module-attempts/${landing.lastAttemptId}`}>View your latest result</Link></p> : null}

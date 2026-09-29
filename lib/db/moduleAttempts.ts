@@ -100,6 +100,7 @@ const ATTEMPT_COLUMNS = `a.id, a.module_id, a.student_user_id, a.attempt_number,
   m.title as module_title, m.correct_points, m.wrong_points, m.blank_points,
   m.allow_review,
   (select count(*)::int from faculty_module_questions q where q.module_id = a.module_id) as question_count`;
+const RECEIPT_GRACE_MS = 10_000;
 
 function iso(value: Date | string): string {
   return new Date(value).toISOString();
@@ -166,10 +167,29 @@ async function recordObservedActivity(
 
 /** Caller holds FOR UPDATE on the attempt. Finalization is single-shot. */
 async function finalizeLocked(
-  client: PoolClient, attempt: AttemptRow, now: Date, status: 'submitted' | 'expired'
+  client: PoolClient, attempt: AttemptRow, now: Date, status: 'submitted' | 'expired',
+  answers?: readonly { position: number; selectedIndex: 0 | 1 | 2 | 3 }[]
 ): Promise<AttemptRow> {
   if (attempt.status !== 'active') return attempt;
-  await recordObservedActivity(client, attempt, now, null);
+  if (answers !== undefined && status === 'submitted') {
+    if (answers.some((item) => item.position > attempt.question_count)) {
+      throw new StudentAttemptError('Question not in this attempt.', 404);
+    }
+    // One atomic answer-sheet write; the database trigger also checks the
+    // bounded receipt grace. Neither browser state nor client time is trusted.
+    await client.query('delete from faculty_module_responses where attempt_id = $1', [attempt.id]);
+    if (answers.length > 0) {
+      await client.query(
+        `insert into faculty_module_responses
+           (attempt_id, module_id, position, selected_index, revision, saved_at)
+         select $1::uuid, $2::uuid, item.position, item.selected_index, 1, clock_timestamp()
+         from jsonb_to_recordset($3::jsonb) as item(position smallint, selected_index smallint)`,
+        [attempt.id, attempt.module_id, JSON.stringify(answers.map((answer) => ({
+          position: answer.position, selected_index: answer.selectedIndex,
+        })))]
+      );
+    }
+  }
   const result = await client.query<{ answer_index: number; selected_index: number | null }>(
     `select q.answer_index, r.selected_index from faculty_module_questions q
      left join faculty_module_responses r on r.module_id = q.module_id
@@ -218,7 +238,7 @@ export async function startStudentAttempt(token: string, studentId: string): Pro
        for update of a`, [facultyModule.id, studentId]
     );
     const previous = active.rows[0];
-    if (previous && now.getTime() < new Date(previous.deadline_at).getTime()) {
+    if (previous && now.getTime() < new Date(previous.deadline_at).getTime() + RECEIPT_GRACE_MS) {
       return { id: previous.id, resumed: true };
     }
     if (previous) await finalizeLocked(client, previous, now, 'expired');
@@ -253,7 +273,7 @@ export async function getStudentAttempt(attemptId: string, studentId: string): P
   return withUserTransaction(async (client) => {
     let attempt = await lockedStudentAttempt(client, attemptId, studentId);
     const now = await serverNow(client);
-    if (attempt.status === 'active' && now.getTime() >= new Date(attempt.deadline_at).getTime()) {
+    if (attempt.status === 'active' && now.getTime() >= new Date(attempt.deadline_at).getTime() + RECEIPT_GRACE_MS) {
       attempt = await finalizeLocked(client, attempt, now, 'expired');
     }
     if (attempt.status === 'active') {
@@ -403,14 +423,27 @@ export async function recordStudentActivity(
   });
 }
 
-export async function submitStudentAttempt(attemptId: string, studentId: string): Promise<StudentAttemptView> {
-  await withUserTransaction(async (client) => {
-    const attempt = await lockedStudentAttempt(client, attemptId, studentId);
-    if (attempt.status !== 'active') return;
-    const now = await serverNow(client);
-    const status = now.getTime() >= new Date(attempt.deadline_at).getTime() ? 'expired' : 'submitted';
-    await finalizeLocked(client, attempt, now, status);
-  });
+export async function submitStudentAttempt(
+  attemptId: string, studentId: string,
+  answers?: readonly { position: number; selectedIndex: 0 | 1 | 2 | 3 }[]
+): Promise<StudentAttemptView> {
+  try {
+    await withUserTransaction(async (client) => {
+      const attempt = await lockedStudentAttempt(client, attemptId, studentId);
+      if (attempt.status !== 'active') return;
+      const now = await serverNow(client);
+      const status = now.getTime() >= new Date(attempt.deadline_at).getTime() + RECEIPT_GRACE_MS ? 'expired' : 'submitted';
+      await finalizeLocked(client, attempt, now, status, status === 'submitted' ? answers : undefined);
+    });
+  } catch (error) {
+    // The receipt window may close between the clock check and the database
+    // trigger's answer insert. Resolve that race as an expired attempt.
+    if (!(error instanceof Error) || !error.message.includes('faculty attempt is no longer writable')) throw error;
+    await withUserTransaction(async (client) => {
+      const attempt = await lockedStudentAttempt(client, attemptId, studentId);
+      if (attempt.status === 'active') await finalizeLocked(client, attempt, await serverNow(client), 'expired');
+    });
+  }
   return getStudentAttempt(attemptId, studentId);
 }
 
@@ -420,7 +453,7 @@ export async function expireDueStudentAttempts(limit = 25): Promise<number> {
   return withUserTransaction(async (client) => {
     const due = await client.query<{ id: string; student_user_id: string }>(
       `select id, student_user_id from faculty_module_attempts
-       where status = 'active' and deadline_at <= clock_timestamp()
+       where status = 'active' and deadline_at + interval '10 seconds' < clock_timestamp()
        order by deadline_at, id limit $1 for update skip locked`, [limit]
     );
     for (const item of due.rows) {

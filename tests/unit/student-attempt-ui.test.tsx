@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { AttemptClient } from '@/app/module-attempts/[id]/AttemptClient';
+import { FinalAttemptClient } from '@/app/module-attempts/[id]/FinalAttemptClient';
 import type { StudentAttemptView } from '@/lib/db/moduleAttempts';
 
 const id = '1de98e87-5a44-4d58-9a42-85ff6418c89b';
@@ -18,11 +18,11 @@ const active: StudentAttemptView = {
 
 describe('student exam rendering', () => {
   it('shows timed, keyboard-reachable questions without answer keys or explanations', () => {
-    const html = renderToStaticMarkup(<AttemptClient initialView={active} studentId="student-1" />);
+    const html = renderToStaticMarkup(<FinalAttemptClient initialView={active} />);
     expect(html).toContain('role="timer"');
     expect(html).toContain('Question 1 of 1');
     expect(html).toContain('Choose one answer for question 1');
-    expect(html).toContain('All answers saved.');
+    expect(html).toContain('Answers not yet saved to the server.');
     expect(html).not.toContain('correct answer');
     expect(html).not.toContain('SECRET EXPLANATION');
   });
@@ -33,7 +33,7 @@ describe('student exam rendering', () => {
       submittedAt: '2026-09-18T08:02:00.000Z', score: 4, maxPoints: 4,
       correctCount: 1, wrongCount: 0, unansweredCount: 0, review: null,
     };
-    const html = renderToStaticMarkup(<AttemptClient initialView={final} studentId="student-1" />);
+    const html = renderToStaticMarkup(<FinalAttemptClient initialView={final} />);
     expect(html).toContain('4 / 4 points');
     expect(html).toContain('Answer review is disabled');
     expect(html).not.toContain('correct answer');
@@ -46,7 +46,7 @@ describe('student exam rendering', () => {
       correctCount: 0, wrongCount: 0, unansweredCount: 1,
       review: [{ ...question, correctIndex: 2, selectedIndex: null, explanation: 'SECRET EXPLANATION' }],
     };
-    const html = renderToStaticMarkup(<AttemptClient initialView={final} studentId="student-1" />);
+    const html = renderToStaticMarkup(<FinalAttemptClient initialView={final} />);
     expect(html).toContain('SECRET EXPLANATION');
     expect(html).toContain('Gamma — correct answer');
   });

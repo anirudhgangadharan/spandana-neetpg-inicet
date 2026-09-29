@@ -33,6 +33,9 @@ export interface ParticipantResult {
   readonly attemptId: string;
   readonly studentName: string | null;
   readonly studentEmail: string;
+  readonly registrationNumber: string | null;
+  readonly rollNumber: string | null;
+  readonly guestParticipantId: string | null;
   readonly attemptNumber: number;
   readonly status: 'active' | 'submitted' | 'expired';
   readonly startedAt: string;
@@ -122,6 +125,7 @@ interface QuestionRow {
 
 interface ParticipantRow {
   attempt_id: string; student_name: string | null; student_email: string;
+  registration_number: string | null; roll_number: string | null; guest_participant_id: string | null;
   attempt_number: number; status: ParticipantResult['status']; started_at: string | Date;
   completed_at: string | Date | null; elapsed_seconds: number; score: number | null;
   correct_count: number | null; wrong_count: number | null; unanswered_count: number | null;
@@ -246,25 +250,33 @@ export async function getOwnedModuleAnalytics(
   if (!moduleRow) return null;
 
   const finalRows = await sql.query(
-    `select a.score::int score, u.name student_name, u.email student_email,
+    `select a.score::int score, coalesce(gp.name, u.name) student_name,
+       case when gp.id is null then u.email else '' end student_email,
        greatest(0, extract(epoch from (least(a.submitted_at, a.deadline_at) - a.started_at)))::int elapsed_seconds
      from faculty_module_attempts a join faculty_modules fm on fm.id = a.module_id
      join users u on u.id = a.student_user_id
+     left join guest_module_participants gp on gp.module_id = a.module_id and gp.student_user_id = a.student_user_id
      where a.module_id = $1::uuid and fm.owner_user_id = $2::uuid
        and a.status in ('submitted','expired') order by a.score`, [moduleId, ownerUserId]
   ) as FinalRow[];
   const questionRows = await sql.query(QUESTION_AGGREGATE, [moduleId, ownerUserId]) as QuestionRow[];
   const normalizedSearch = search.trim().slice(0, 120);
   const participantRows = await sql.query(
-    `select a.id attempt_id, u.name student_name, u.email student_email, a.attempt_number,
+    `select a.id attempt_id, coalesce(gp.name, u.name) student_name,
+       case when gp.id is null then u.email else '' end student_email,
+       gp.registration_number, gp.roll_number, gp.id guest_participant_id, a.attempt_number,
        a.status, a.started_at, a.submitted_at completed_at,
        greatest(0, extract(epoch from (least(coalesce(a.submitted_at, clock_timestamp()), a.deadline_at) - a.started_at)))::int elapsed_seconds,
        a.score, a.correct_count, a.wrong_count, a.unanswered_count
      from faculty_module_attempts a
      join faculty_modules fm on fm.id = a.module_id
      join users u on u.id = a.student_user_id
+     left join guest_module_participants gp on gp.module_id = a.module_id and gp.student_user_id = a.student_user_id
      where a.module_id = $1::uuid and fm.owner_user_id = $2::uuid
-       and ($3 = '' or coalesce(u.name, '') ilike '%' || $3 || '%' or u.email ilike '%' || $3 || '%')
+       and ($3 = '' or coalesce(gp.name, u.name, '') ilike '%' || $3 || '%'
+         or (gp.id is null and u.email ilike '%' || $3 || '%')
+         or gp.registration_number ilike '%' || $3 || '%'
+         or gp.roll_number ilike '%' || $3 || '%')
      order by a.started_at desc, a.id desc limit $4 offset $5`,
     [moduleId, ownerUserId, normalizedSearch, FACULTY_PARTICIPANT_PAGE_SIZE + 1,
       (page - 1) * FACULTY_PARTICIPANT_PAGE_SIZE]
@@ -293,6 +305,8 @@ export async function getOwnedModuleAnalytics(
     participants: {
       items: participantRows.slice(0, FACULTY_PARTICIPANT_PAGE_SIZE).map((row) => ({
         attemptId: row.attempt_id, studentName: row.student_name, studentEmail: row.student_email,
+        registrationNumber: row.registration_number, rollNumber: row.roll_number,
+        guestParticipantId: row.guest_participant_id,
         attemptNumber: integer(row.attempt_number), status: row.status,
         startedAt: new Date(row.started_at).toISOString(),
         completedAt: row.completed_at === null ? null : new Date(row.completed_at).toISOString(),

@@ -9,7 +9,7 @@ vi.mock('@/lib/db/transactionClient', () => ({ withUserTransaction: mocks.transa
 import { getQuestionById, listQuestionIds } from '@/lib/db/queries';
 import { createFacultyDraft, replaceFacultyQuestions, saveFacultyDraftSettings, changeFacultyModuleStatus } from '@/lib/db/facultyModuleBuilder';
 import { getOwnedModuleDetail } from '@/lib/db/facultyModules';
-import { saveStudentResponse, startStudentAttempt, submitStudentAttempt } from '@/lib/db/moduleAttempts';
+import { startStudentAttempt, submitStudentAttempt } from '@/lib/db/moduleAttempts';
 import { parseDraftSettings } from '@/lib/faculty/moduleInput';
 
 let db: PGlite;
@@ -24,7 +24,7 @@ beforeEach(async () => {
     id uuid primary key default gen_random_uuid(), email text unique not null,
     name text, image text, password_hash text
   )`);
-  for (const name of ['001_faculty_foundation.sql', '002_faculty_builder.sql', '003_student_attempts.sql', '004_faculty_analytics.sql']) {
+  for (const name of ['001_faculty_foundation.sql', '002_faculty_builder.sql', '003_student_attempts.sql', '004_faculty_analytics.sql', '005_guest_participants_corrections.sql']) {
     await db.exec(await readFile(new URL(`../../scripts/db/migrations/${name}`, import.meta.url), 'utf8'));
   }
   mocks.query.mockImplementation(async (statement: string, params: unknown[] = []) => (await db.query(statement, params)).rows);
@@ -50,17 +50,16 @@ beforeEach(async () => {
 afterEach(async () => { mocks.query.mockReset(); mocks.transaction.mockReset(); await db.close(); });
 
 describe('logical concurrency rehearsal on PGlite', () => {
-  it('preserves 50 concurrent start/save/submit call sequences without duplicate or lost records', async () => {
+  it('preserves 50 concurrent start/final-sheet submissions without duplicate or lost records', async () => {
     const cohort = studentIds.slice(0, 50);
     const starts = await Promise.all(cohort.map((student) => startStudentAttempt(token, student)));
     expect(new Set(starts.map((attempt) => attempt.id)).size).toBe(50);
     expect(starts.every((attempt) => !attempt.resumed)).toBe(true);
 
     const answer = getQuestionById(questionId)!.answerIndex;
-    await Promise.all(starts.map((attempt, index) => saveStudentResponse(cohort[index]!, attempt.id, {
-      position: 1, selectedIndex: answer, expectedRevision: 0,
-    })));
-    const results = await Promise.all(starts.map((attempt, index) => submitStudentAttempt(attempt.id, cohort[index]!)));
+    const results = await Promise.all(starts.map((attempt, index) => submitStudentAttempt(
+      attempt.id, cohort[index]!, [{ position: 1, selectedIndex: answer }]
+    )));
     expect(results.every((result) => result.status === 'submitted' && result.score === 4)).toBe(true);
     const counts = await db.query<{ attempts: number; responses: number; submitted: number }>(`select
       (select count(*)::int from faculty_module_attempts) attempts,

@@ -10,7 +10,8 @@
  */
 
 import type { NextRequest } from 'next/server';
-import { badRequest, ok, readBool, readInt, readList, withCorpus } from '@/lib/api/respond';
+import { badRequest, ok, readBool, readInt, readList, withCorpusAsync } from '@/lib/api/respond';
+import { effectiveQuestions } from '@/lib/db/questionCorrections';
 import {
   DEFAULT_PAGE_SIZE,
   MAX_WINDOW,
@@ -47,8 +48,8 @@ export function filtersFromParams(params: URLSearchParams): QuestionFilters {
   };
 }
 
-export function GET(request: NextRequest): ReturnType<typeof withCorpus> {
-  return withCorpus(() => {
+export function GET(request: NextRequest): ReturnType<typeof withCorpusAsync> {
+  return withCorpusAsync(async () => {
     const params = request.nextUrl.searchParams;
 
     const ids = readList(params, 'ids');
@@ -56,7 +57,8 @@ export function GET(request: NextRequest): ReturnType<typeof withCorpus> {
       if (ids.length > MAX_WINDOW) {
         return badRequest(`Requested ${ids.length} ids; the maximum window is ${MAX_WINDOW}.`);
       }
-      return ok({ questions: getQuestionsByIds(ids) });
+      const resolved = await effectiveQuestions(getQuestionsByIds(ids));
+      return ok({ questions: resolved.questions }, false);
     }
 
     const limit = readInt(params, 'limit', DEFAULT_PAGE_SIZE);
@@ -64,6 +66,8 @@ export function GET(request: NextRequest): ReturnType<typeof withCorpus> {
     const cursor = cursorRaw === null ? null : Number.parseInt(cursorRaw, 10);
     if (cursor !== null && !Number.isFinite(cursor)) return badRequest('cursor must be an integer');
 
-    return ok(listQuestions(filtersFromParams(params), cursor, limit));
+    const page = listQuestions(filtersFromParams(params), cursor, limit);
+    const resolved = await effectiveQuestions(page.questions);
+    return ok({ ...page, questions: resolved.questions }, false);
   });
 }

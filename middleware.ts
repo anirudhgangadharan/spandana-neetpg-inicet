@@ -40,6 +40,8 @@ const LIMIT_FACULTY_BUILDER = 90;
 const LIMIT_ACCOUNT = 10;
 /** Per authenticated student so a classroom behind one NAT can autosave. */
 const LIMIT_STUDENT_EXAM = 180;
+/** A classroom may share one public IP when all students register together. */
+const LIMIT_GUEST_REGISTER = 500;
 /** Stop the map growing without bound on a long-lived process. */
 const MAX_TRACKED_CLIENTS = 20_000;
 
@@ -105,26 +107,36 @@ export default auth((request) => {
     const isSignup = pathname === '/api/auth/signup';
     const isCredentialSignin = pathname === '/api/auth/callback/credentials';
     const isStudentExam = pathname.startsWith('/api/module-attempts/') || pathname.startsWith('/api/modules/');
-    const limit = isAccount || isSignup || isCredentialSignin ? LIMIT_ACCOUNT : isFacultyAccess ? LIMIT_FACULTY_ACCESS
+    const isGuestRegister = pathname.endsWith('/guest') && pathname.startsWith('/api/modules/');
+    const limit = isGuestRegister ? LIMIT_GUEST_REGISTER
+      : isAccount || isSignup || isCredentialSignin ? LIMIT_ACCOUNT : isFacultyAccess ? LIMIT_FACULTY_ACCESS
       : isSearch ? LIMIT_SEARCH : isFacultyBuilder ? LIMIT_FACULTY_BUILDER
         : isStudentExam ? LIMIT_STUDENT_EXAM : LIMIT_DEFAULT;
-    const bucket = isAccount ? 'account' : isSignup ? 'signup' : isCredentialSignin ? 'credentials'
+    const bucket = isGuestRegister ? 'guest-register' : isAccount ? 'account' : isSignup ? 'signup' : isCredentialSignin ? 'credentials'
       : isFacultyAccess ? 'faculty-access' : isSearch ? 's'
       : isFacultyBuilder ? 'faculty-builder' : isStudentExam ? 'student-exam' : 'a';
-    const subject = request.auth?.user?.id
-      ? `user:${request.auth.user.id}` : `ip:${clientKey(request)}`;
+    const guestCookie = isStudentExam && !isGuestRegister
+      ? request.cookies.getAll().find((cookie) => cookie.name.startsWith('faculty_guest_'))?.value : undefined;
+    const subject = isGuestRegister ? `ip:${clientKey(request)}`
+      : guestCookie ? `guest:${guestCookie.slice(0, 24)}`
+        : request.auth?.user?.id ? `user:${request.auth.user.id}` : `ip:${clientKey(request)}`;
     const { allowed, retryAfter } = rateLimit(`${subject}:${bucket}`, limit, Date.now());
+    const aggregate = guestCookie ? rateLimit(`ip:${clientKey(request)}:guest-exam-total`, 2000, Date.now())
+      : { allowed: true, retryAfter: 0 };
 
-    if (!allowed) {
+    if (!allowed || !aggregate.allowed) {
       return NextResponse.json(
         { error: 'rate_limited', message: 'Too many requests. Slow down and try again shortly.' },
-        { status: 429, headers: { 'Retry-After': String(retryAfter), 'Cache-Control': 'no-store' } }
+        { status: 429, headers: { 'Retry-After': String(Math.max(retryAfter, aggregate.retryAfter)), 'Cache-Control': 'no-store' } }
       );
     }
     return NextResponse.next();
   }
 
   if (!request.auth?.user) {
+    if (pathname.startsWith('/modules/') || pathname.startsWith('/module-attempts/')) {
+      return NextResponse.next();
+    }
     return NextResponse.redirect(new URL('/login', request.url));
   }
   return NextResponse.next();

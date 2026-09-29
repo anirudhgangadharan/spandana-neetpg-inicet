@@ -10,8 +10,11 @@ This document records the implemented behavior and the facts that still need an 
 | Practice attempts, bookmarks, streaks, sessions, saved configuration | Postgres and browser IndexedDB | Progress, resume, and personal insights | The account |
 | Faculty grants and editorial-note grants | Postgres | Authorization | Super admin sees grant metadata only |
 | Faculty modules and immutable question snapshots | Postgres | Deliver the assessment exactly as published | Owning faculty only |
-| Module opens, attempts, responses, server timing observations, scores | Postgres | Resume, scoring, attempt enforcement, and descriptive analytics | Student result policy; owning faculty analytics |
-| Read-only question corpus | SQLite in the application image | Practice and frozen-module creation | Authenticated users through filtered APIs |
+| Guest name, registration number, roll number, opaque hashed session and recovery tokens | Postgres; session cookie in browser | Identify a shared-link participant, enforce attempts, and support faculty-assisted recovery | Owning faculty sees identity; guest session accesses only its own attempt |
+| Module attempts, final answers, scores, and legacy server timing observations | Postgres | Deadline and attempt enforcement, scoring, and descriptive analytics | Student result policy; owning faculty analytics |
+| Guest answer recovery copy without identity | Browser session storage | Restore choices after a refresh before final submission | That browser tab only |
+| Correction versions, reasons, source hashes, and faculty attribution | Postgres | Serve corrected questions and preserve an audit trail | Faculty correction workflow; operational database administrators |
+| Read-only question corpus | SQLite in the application image | Practice and frozen-module creation | Users through filtered APIs; the public guest exam exposes only its own frozen questions |
 | Short-lived request counters | Application memory | Abuse control | Application process only |
 
 No advertising SDK, generative-model API, or third-party analytics SDK is present. Production infrastructure providers will still process network, database, build, and operational-log data under their own terms.
@@ -27,6 +30,8 @@ No advertising SDK, generative-model API, or third-party analytics SDK is presen
 
 Only after the server confirms deletion does the browser discard queued practice writes, IndexedDB progress/bookmarks, session storage, local storage, and sign out. A server failure leaves the account, local data, and session intact and gives a retryable error. Browser-storage cleanup is best effort after the irreversible server transaction; failure to access local storage cannot restore the deleted account.
 
+The owning faculty member can erase an individual guest participant through the results view. This deletes its synthetic user and cascades the guest identity, sessions, recovery codes, attempts, answers, and scores. Faculty account deletion also removes all guest participants in its modules. A guest without a login asks the owning faculty member for erasure or a one-time recovery code; matching self-reported identifiers alone never restores a session. Guest session cookies expire after 30 days. Local answer copies disappear on finalization or when browser session storage is cleared. Answers that never reach final submission are not stored by the server.
+
 Shared editorial-note content is deliberately not attributed to an author and therefore is not deleted with an account. This product decision must be reviewed before launch if authorship or audit attribution is later added.
 
 ## Retention and launch blockers
@@ -37,6 +42,8 @@ Primary application rows are deleted immediately by the transaction. Before laun
 - Render build/runtime logs and backups;
 - OAuth-provider records outside this application;
 - any incident/security logs added later.
+
+The operator must set and publish a calendar-based retention/deletion period for guest participant rows and correction audit records. The current application supports faculty-initiated erasure but has no automatic age-based purge. This is an unresolved deployment decision.
 
 The operator must also supply `PRIVACY_OPERATOR_NAME`, a monitored `PRIVACY_CONTACT_EMAIL`, jurisdiction-specific lawful bases and rights language, and a stable public HTTPS URL for `/privacy` and `/delete-account`. These are unresolved release blockers; the repository does not pretend otherwise.
 

@@ -2,9 +2,10 @@ import { readFile } from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 
-const mocks = vi.hoisted(() => ({ query: vi.fn(), transaction: vi.fn() }));
+const mocks = vi.hoisted(() => ({ query: vi.fn(), transaction: vi.fn(), cookies: vi.fn() }));
 vi.mock('@/lib/db/userClient', () => ({ sql: { query: mocks.query } }));
 vi.mock('@/lib/db/transactionClient', () => ({ withUserTransaction: mocks.transaction }));
+vi.mock('next/headers', () => ({ cookies: mocks.cookies }));
 
 import { getQuestionById, listQuestionIds } from '@/lib/db/queries';
 import { createFacultyDraft, replaceFacultyQuestions, saveFacultyDraftSettings, changeFacultyModuleStatus } from '@/lib/db/facultyModuleBuilder';
@@ -15,20 +16,29 @@ import {
   recordStudentActivity, startStudentAttempt, submitStudentAttempt,
 } from '@/lib/db/moduleAttempts';
 import { parseDraftSettings } from '@/lib/faculty/moduleInput';
+import { deleteGuestParticipant, enrollGuest, getGuestStudentId, issueGuestRecovery, parseGuestIdentity, redeemGuestRecovery, setGuestCookie } from '@/lib/db/guestStudents';
+import { getOwnedModuleAnalytics } from '@/lib/db/facultyAnalytics';
 
 let db: PGlite;
 let facultyId: string;
 let studentA: string;
 let studentB: string;
 let questionId: string;
+let guestCookies: Map<string, string>;
 
 beforeEach(async () => {
+  guestCookies = new Map();
+  mocks.cookies.mockImplementation(async () => ({
+    set: (name: string, value: string) => guestCookies.set(name, value),
+    get: (name: string) => guestCookies.has(name) ? { value: guestCookies.get(name) } : undefined,
+    getAll: () => [...guestCookies].map(([name, value]) => ({ name, value })),
+  }));
   db = new PGlite();
   await db.exec(`create table users (
     id uuid primary key default gen_random_uuid(), email text unique not null,
     name text, image text, password_hash text
   )`);
-  for (const name of ['001_faculty_foundation.sql', '002_faculty_builder.sql', '003_student_attempts.sql', '004_faculty_analytics.sql']) {
+  for (const name of ['001_faculty_foundation.sql', '002_faculty_builder.sql', '003_student_attempts.sql', '004_faculty_analytics.sql', '005_guest_participants_corrections.sql']) {
     await db.exec(await readFile(new URL(`../../scripts/db/migrations/${name}`, import.meta.url), 'utf8'));
   }
   mocks.query.mockImplementation(async (statement: string, params: unknown[] = []) => (await db.query(statement, params)).rows);
@@ -55,6 +65,7 @@ beforeEach(async () => {
 afterEach(async () => {
   mocks.query.mockReset();
   mocks.transaction.mockReset();
+  mocks.cookies.mockReset();
   await db.close();
 });
 
@@ -76,6 +87,73 @@ async function publishedModule(options: { review?: boolean; maxAttempts?: number
 }
 
 describe('student attempts on disposable PostgreSQL and frozen corpus', () => {
+  it('stores no answer until one atomic final sheet, then returns the same result on retry', async () => {
+    const facultyModule = await publishedModule();
+    const started = await startStudentAttempt(facultyModule.token, studentA);
+    const answer = getQuestionById(questionId)!.answerIndex;
+    const before = await db.query<{ count: number }>(
+      'select count(*)::int count from faculty_module_responses where attempt_id = $1', [started.id]
+    );
+    expect(before.rows[0]?.count).toBe(0);
+    const sheet = [{ position: 1, selectedIndex: answer }];
+    const result = await submitStudentAttempt(started.id, studentA, sheet);
+    expect(result).toMatchObject({ status: 'submitted', score: 4, correctCount: 1 });
+    expect(await submitStudentAttempt(started.id, studentA, sheet)).toEqual(result);
+    const after = await db.query<{ count: number }>(
+      'select count(*)::int count from faculty_module_responses where attempt_id = $1', [started.id]
+    );
+    expect(after.rows[0]?.count).toBe(1);
+    await expect(submitStudentAttempt(started.id, studentB, sheet)).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('registers a guest, rejects duplicate identifiers, exposes identity only to its faculty, and recovers once', async () => {
+    const facultyModule = await publishedModule();
+    const identity = parseGuestIdentity({ name: '  Ada  Rao ', registrationNumber: '0012', rollNumber: '07' });
+    expect(identity.name).toBe('Ada Rao');
+    expect(identity.registrationNumber).toBe('0012');
+    expect(() => parseGuestIdentity({ name: ' ', registrationNumber: '0012', rollNumber: '07' })).toThrow('Name');
+    const firstSession = await enrollGuest(facultyModule.token, identity);
+    await setGuestCookie(firstSession, facultyModule.token);
+    await expect(enrollGuest(facultyModule.token, { ...identity, registrationNumber: '0012', rollNumber: '07' }))
+      .rejects.toMatchObject({ status: 409 });
+    const participants = await db.query<{ id: string; student_user_id: string }>(
+      'select id, student_user_id from guest_module_participants where module_id = $1', [facultyModule.id]
+    );
+    const participant = participants.rows[0]!;
+    expect(await getGuestStudentId(facultyModule.token)).toBe(participant.student_user_id);
+    guestCookies.set(`faculty_guest_${facultyModule.token}`, 'forged-token');
+    expect(await getGuestStudentId(facultyModule.token)).toBeNull();
+    await setGuestCookie(firstSession, facultyModule.token);
+    const started = await startStudentAttempt(facultyModule.token, participant.student_user_id);
+    expect(await getGuestStudentId(undefined, started.id)).toBe(participant.student_user_id);
+    expect(await getGuestStudentId(undefined, studentA)).toBeNull();
+    const answer = getQuestionById(questionId)!.answerIndex;
+    await submitStudentAttempt(started.id, participant.student_user_id, [{ position: 1, selectedIndex: answer }]);
+    const analytics = await getOwnedModuleAnalytics(facultyId, facultyModule.id);
+    expect(analytics?.participants.items[0]).toMatchObject({ studentName: 'Ada Rao',
+      registrationNumber: '0012', rollNumber: '07', score: 4, studentEmail: '' });
+    await enrollGuest(facultyModule.token, { name: 'Other Student', registrationNumber: '0020', rollNumber: '08' });
+    const other = await db.query<{ student_user_id: string }>(
+      "select student_user_id from guest_module_participants where module_id = $1 and registration_number = '0020'",
+      [facultyModule.id]
+    );
+    const otherAttempt = await startStudentAttempt(facultyModule.token, other.rows[0]!.student_user_id);
+    expect(await getGuestStudentId(undefined, otherAttempt.id)).toBeNull();
+    await expect(issueGuestRecovery(studentB, facultyModule.id, participant.id)).rejects.toMatchObject({ status: 404 });
+    const code = await issueGuestRecovery(facultyId, facultyModule.id, participant.id);
+    const newSession = await redeemGuestRecovery(facultyModule.token, code);
+    expect(await getGuestStudentId(facultyModule.token)).toBeNull();
+    await setGuestCookie(newSession, facultyModule.token);
+    expect(await getGuestStudentId(facultyModule.token)).toBe(participant.student_user_id);
+    await expect(redeemGuestRecovery(facultyModule.token, code)).rejects.toMatchObject({ status: 409 });
+    await expect(deleteGuestParticipant(studentB, facultyModule.id, participant.id)).rejects.toMatchObject({ status: 404 });
+    await deleteGuestParticipant(facultyId, facultyModule.id, participant.id);
+    const erased = await db.query<{ count: number }>(
+      'select count(*)::int count from faculty_module_attempts where id = $1', [started.id]
+    );
+    expect(erased.rows[0]?.count).toBe(0);
+  });
+
   it('starts, autosaves, resumes, scores once, and hides answers under score-only policy', async () => {
     const facultyModule = await publishedModule();
     const landing = await getStudentModuleLanding(facultyModule.token, studentA);

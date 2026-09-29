@@ -12,9 +12,12 @@ subset). Pick a question bank in the sidebar; MedMCQA is the default.
 
 ## What makes this different
 
-Every answer comes from the dataset and nothing else. There is no generative
-component anywhere in the correctness path — no model call, no inference, no
-"best guess". Where the dataset is silent, the app is silent.
+Every answer starts from the imported dataset. Authorized faculty can now
+record an audited correction to a question or answer key; the latest correction
+is served for future practice and tests while the imported corpus remains
+unchanged. There is no generative component in the correctness path — no model
+call, inference, or "best guess". Faculty corrections are attributable edits,
+not independent clinical validation.
 
 Because the dataset has real defects, they are **labelled rather than hidden**:
 
@@ -36,7 +39,8 @@ Because the dataset has real defects, they are **labelled rather than hidden**:
 
 ## Correctness
 
-The answer for a question is a single integer fixed at build time, and the only
+The served answer for a question is a single integer from the verified corpus
+or its latest audited faculty correction, and the only
 computation that decides a verdict is index equality:
 
 ```ts
@@ -52,7 +56,7 @@ property is enforced rather than trusted:
   wrong would make every answer wrong while everything still appeared to work.
   USMLE's answer field has no such ambiguity — it's a direct letter lookup,
   validated the same way every other field is (fail closed, never guessed).
-- The whole corpus — both question banks — is checksummed at build time and
+- The imported corpus — both question banks — is checksummed at build time and
   re-verified at startup. If the answer key does not match, the app refuses to
   serve any questions at all.
 - A CI grep enforces that the answer field is unreadable outside the trusted
@@ -63,6 +67,24 @@ property is enforced rather than trusted:
 
 Full reasoning, including every deviation from the specification and the bugs
 found along the way, is in [`DECISIONS.md`](DECISIONS.md).
+
+## Faculty tests
+
+Faculty can publish a timed test link. Students enter name, registration number,
+and roll number without Google sign-in. These are self-reported identifiers,
+not proof of identity. Choices remain in that browser until the student submits
+or the timer triggers submission; the server then stores and scores the complete
+answer sheet once. A browser or network failure before submission can lose
+answers. A faculty member can issue a 15-minute one-time recovery code after
+verifying the student through an independent channel. Faculty can also erase a
+guest participant's identity and attempts. The in-app privacy notice explains
+retention and deletion.
+
+Corrections made while building a draft become the served version for future
+practice and modules. Every version records its author, reason, timestamp, and
+source-corpus hash; prior versions can be restored. Existing published tests
+and scores retain their frozen question and answer snapshot. A future corpus
+rebuild needs an explicit correction rebase review before serving resumes.
 
 ## Running it locally
 
@@ -93,7 +115,7 @@ The authenticated application has three isolated roles:
 - each faculty account drafts, publishes, archives, and analyzes only its own modules;
 - the super admin manages up to three faculty email grants but has no question, response, or detailed-analytics bypass.
 
-Published modules freeze question content, order, marking, attempt policy, and review policy in Postgres. Student deadlines and attempt limits are enforced transactionally on the server; active responses never include answer keys. Faculty selection defaults to globally unused questions while revealing no other professor's module identity.
+Published modules freeze question content, order, marking, attempt policy, and review policy in Postgres. Shared links accept guest students after they enter a name, registration number, and roll number; Google sign-in is not required for those tests. Answers remain in browser session storage until one final submission, while the server enforces deadlines and attempt limits. Faculty can correct a question in a draft; audited overrides become the effective question pool for future practice and modules while the source corpus and existing published snapshots remain unchanged. Faculty selection defaults to globally unused questions while revealing no other professor's module identity.
 
 Self-service account deletion is at `/account/delete`, with public instructions at `/delete-account` and the public notice at `/privacy`. See [`PRIVACY.md`](PRIVACY.md) for exact cascade behavior and unresolved operator-retention requirements.
 

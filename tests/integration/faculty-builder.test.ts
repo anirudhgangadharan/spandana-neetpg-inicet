@@ -14,6 +14,8 @@ import {
   FacultyModuleError, replaceFacultyQuestions, saveFacultyDraftSettings,
 } from '@/lib/db/facultyModuleBuilder';
 import { parseDraftSettings, parseSelection } from '@/lib/faculty/moduleInput';
+import { parseCorrection, saveQuestionCorrection } from '@/lib/db/saveQuestionCorrection';
+import { effectiveQuestions } from '@/lib/db/questionCorrections';
 
 let db: PGlite;
 let ownerA: string;
@@ -26,7 +28,7 @@ beforeEach(async () => {
     id uuid primary key default gen_random_uuid(), email text unique not null,
     name text, image text, password_hash text
   )`);
-  for (const name of ['001_faculty_foundation.sql', '002_faculty_builder.sql', '003_student_attempts.sql', '004_faculty_analytics.sql']) {
+  for (const name of ['001_faculty_foundation.sql', '002_faculty_builder.sql', '003_student_attempts.sql', '004_faculty_analytics.sql', '005_guest_participants_corrections.sql']) {
     await db.exec(await readFile(new URL(`../../scripts/db/migrations/${name}`, import.meta.url), 'utf8'));
   }
   mocks.query.mockImplementation(async (statement: string, params: unknown[] = []) => (await db.query(statement, params)).rows);
@@ -70,16 +72,62 @@ async function configuredDraft(ownerId: string): Promise<{ id: string; revision:
 }
 
 describe('faculty builder on disposable PostgreSQL and read-only corpus', () => {
-  it('publishes the selected order as an immutable snapshot without answer data in faculty DTOs', async () => {
+  it('versions a global correction, freezes published tests, and restores the source by audit entry', async () => {
+    const id = questionIds[0]!;
+    const source = getQuestionById(id)!;
+    const old = await configuredDraft(ownerA);
+    await replaceFacultyQuestions(ownerA, old.id, { ids: [id], revision: 1, allowReuse: true });
+    await changeFacultyModuleStatus(ownerA, old.id, { action: 'publish', revision: 2, acceptReuse: true });
+    const draft = await configuredDraft(ownerA);
+    await replaceFacultyQuestions(ownerA, draft.id, { ids: [id], revision: 1, allowReuse: true });
+    const newAnswer = ((source.answerIndex + 1) % 4) + 1;
+    await saveQuestionCorrection(ownerA, draft.id, id, parseCorrection({
+      revision: 2, expectedVersion: 0, stem: 'Corrected clinical question',
+      options: [...source.options], correctOption: newAnswer, explanation: 'Reviewed source.',
+      reason: 'Faculty verified the answer key.',
+    }));
+    expect((await effectiveQuestions([source])).questions[0]?.stem).toBe('Corrected clinical question');
+    expect((await getOwnedModuleDetail(ownerA, draft.id))?.selectedQuestions[0]).toMatchObject({
+      stem: 'Corrected clinical question', correctOption: newAnswer, correctionVersion: 1,
+    });
+    const originalSnapshot = await db.query<{ answer_index: number }>(
+      'select answer_index from faculty_module_questions where module_id = $1', [old.id]
+    );
+    expect(originalSnapshot.rows[0]?.answer_index).toBe(source.answerIndex);
+    const later = await configuredDraft(ownerA);
+    await replaceFacultyQuestions(ownerA, later.id, { ids: [id], revision: 1, allowReuse: true });
+    await changeFacultyModuleStatus(ownerA, later.id, { action: 'publish', revision: 2, acceptReuse: true });
+    const correctedSnapshot = await db.query<{ answer_index: number; correction_version: number }>(
+      'select answer_index, correction_version from faculty_module_questions where module_id = $1', [later.id]
+    );
+    expect(correctedSnapshot.rows[0]).toMatchObject({ answer_index: newAnswer - 1, correction_version: 1 });
+    await expect(saveQuestionCorrection(ownerA, draft.id, id, parseCorrection({
+      revision: 2, expectedVersion: 0, restoreVersion: 0, reason: 'Try stale version.',
+    }))).rejects.toMatchObject({ status: 409 });
+    await saveQuestionCorrection(ownerA, draft.id, id, parseCorrection({
+      revision: 3, expectedVersion: 1, restoreVersion: 0, reason: 'Restore imported source.',
+    }));
+    expect((await effectiveQuestions([source])).questions[0]?.stem).toBe(source.stem);
+    expect((await db.query<{ answer_index: number }>(
+      'select answer_index from faculty_module_questions where module_id = $1', [later.id]
+    )).rows[0]?.answer_index).toBe(newAnswer - 1);
+    const versions = await db.query<{ version: number; reverted_from: number | null }>(
+      'select version, reverted_from from question_corrections where question_id = $1 order by version', [id]
+    );
+    expect(versions.rows).toEqual([{ version: 1, reverted_from: null }, { version: 2, reverted_from: 0 }]);
+  });
+
+  it('publishes an immutable snapshot and limits answer editing data to drafts', async () => {
     const draft = await configuredDraft(ownerA);
     await replaceFacultyQuestions(ownerA, draft.id, { ids: [...questionIds].reverse(), revision: 1, allowReuse: false });
     const before = await getOwnedModuleDetail(ownerA, draft.id);
     expect(before?.selectedQuestions.map((question) => question.id)).toEqual([...questionIds].reverse());
-    expect(JSON.stringify(before)).not.toMatch(/"(?:answer_index|answerIndex|explanation)"\s*:/);
+    expect(before?.selectedQuestions[0]?.correctOption).toBeGreaterThanOrEqual(1);
     await changeFacultyModuleStatus(ownerA, draft.id, { action: 'publish', revision: 2, acceptReuse: false });
     const published = await getOwnedModuleDetail(ownerA, draft.id);
     expect(published?.status).toBe('published');
     expect(published?.selectedQuestions.map((question) => question.id)).toEqual([...questionIds].reverse());
+    expect(JSON.stringify(published)).not.toMatch(/"(?:answer_index|answerIndex|correctOption|explanation)"\s*:/);
     const frozen = await db.query<{ answer_index: number; stem: string }>(
       'select answer_index, stem from faculty_module_questions where module_id = $1 and position = 1', [draft.id]
     );

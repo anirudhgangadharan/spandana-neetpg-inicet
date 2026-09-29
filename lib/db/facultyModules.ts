@@ -21,6 +21,9 @@ export interface FacultySelectedQuestion {
   readonly source: QuestionSource;
   readonly stem: string;
   readonly options: readonly [string, string, string, string];
+  readonly correctOption?: number;
+  readonly explanation?: string | null;
+  readonly correctionVersion?: number;
   readonly subject: string;
   readonly topic: string | null;
   readonly flags: readonly QuestionFlag[];
@@ -128,7 +131,8 @@ export async function getOwnedModuleDetail(ownerUserId: string, moduleId: string
   const row = rows[0];
   if (!row) return null;
   const selected = (await sql.query(
-    `select q.position, q.question_id, q.source, q.stem, q.options, q.subject, q.topic, q.flags,
+    `select q.position, q.question_id, q.source, q.stem, q.options, q.answer_index,
+       q.explanation, q.correction_version, q.subject, q.topic, q.flags,
        exists (select 1 from faculty_module_questions elsewhere
                where elsewhere.question_id = q.question_id and elsewhere.module_id <> q.module_id) as used_elsewhere
      from faculty_module_questions q
@@ -137,7 +141,9 @@ export async function getOwnedModuleDetail(ownerUserId: string, moduleId: string
      order by q.position`, [moduleId, ownerUserId]
   )) as {
     position: number; question_id: string; source: QuestionSource; stem: string;
-    options: FacultySelectedQuestion['options']; subject: string; topic: string | null;
+    options: FacultySelectedQuestion['options']; answer_index: number;
+    explanation: string | null; correction_version: number | null;
+    subject: string; topic: string | null;
     flags: FacultySelectedQuestion['flags']; used_elsewhere: boolean;
   }[];
   return {
@@ -161,6 +167,11 @@ export async function getOwnedModuleDetail(ownerUserId: string, moduleId: string
       source: question.source,
       stem: question.stem,
       options: question.options,
+      ...(row.status === 'draft' ? {
+        correctOption: question.answer_index + 1,
+        explanation: question.explanation,
+        correctionVersion: question.correction_version ?? 0,
+      } : {}),
       subject: question.subject,
       topic: question.topic,
       flags: question.flags,

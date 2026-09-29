@@ -2,12 +2,8 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AttemptClient } from '@/app/module-attempts/[id]/AttemptClient';
+import { FinalAttemptClient } from '@/app/module-attempts/[id]/FinalAttemptClient';
 import type { StudentAttemptView } from '@/lib/db/moduleAttempts';
-
-vi.mock('next/link', () => ({ default: ({ href, children }: {
-  href: string; children: React.ReactNode;
-}) => <a href={href}>{children}</a> }));
 
 const id = '1de98e87-5a44-4d58-9a42-85ff6418c89b';
 const active: StudentAttemptView = {
@@ -28,6 +24,7 @@ beforeEach(() => {
   root = createRoot(container);
   sessionStorage.clear();
   vi.stubGlobal('fetch', vi.fn());
+  vi.stubGlobal('confirm', vi.fn(() => true));
 });
 
 afterEach(async () => {
@@ -39,45 +36,47 @@ afterEach(async () => {
 });
 
 async function render(view = active): Promise<void> {
-  await act(async () => root.render(<AttemptClient initialView={view} studentId="student-1" />));
+  await act(async () => root.render(<FinalAttemptClient initialView={view} />));
 }
 
-describe('student attempt interaction', () => {
-  it('retains an unsent choice through refresh and sends it after reconnection', async () => {
+describe('final-only student attempt', () => {
+  it('keeps an answer locally across refresh without an answer API write, then submits the full sheet once', async () => {
     const mockedFetch = vi.mocked(fetch);
-    mockedFetch.mockRejectedValueOnce(new TypeError('Network unavailable'));
     await render();
-    await act(async () => {
-      (container.querySelector('input[type="radio"]') as HTMLInputElement).click();
-      await Promise.resolve();
-    });
-    expect(container.textContent).toContain('1 unsaved answer');
-    expect(sessionStorage.getItem(`faculty-unsent:student-1:${id}`)).toContain('[1,0]');
+    await act(async () => (container.querySelector('input[type="radio"]') as HTMLInputElement).click());
+    expect(mockedFetch).not.toHaveBeenCalled();
+    expect(sessionStorage.getItem(`faculty-answers:${id}`)).toContain('"1":0');
 
     await act(async () => root.unmount());
     root = createRoot(container);
-    mockedFetch.mockResolvedValue({
-      ok: true, status: 200,
-      json: async () => ({ position: 1, selectedIndex: 0, revision: 1, activeTimeMs: null,
-        savedAt: '2026-09-18T08:01:01.000Z' }),
-    } as Response);
     await render();
     expect((container.querySelector('input[type="radio"]') as HTMLInputElement).checked).toBe(true);
-    expect(container.textContent).toContain('All answers saved.');
-    expect(sessionStorage.getItem(`faculty-unsent:student-1:${id}`)).toBeNull();
-    expect(mockedFetch).toHaveBeenCalledWith(`/api/module-attempts/${id}/responses`, expect.objectContaining({ method: 'PUT' }));
+    mockedFetch.mockResolvedValue({ ok: true, json: async () => ({
+      status: 'submitted', id, title: 'Timed mock', attemptNumber: 1,
+      submittedAt: '2026-09-18T08:02:00.000Z', score: 4, maxPoints: 4,
+      correctCount: 1, wrongCount: 0, unansweredCount: 0, review: null,
+    }) } as Response);
+    await act(async () => {
+      (Array.from(container.querySelectorAll('button')).find((button) => button.textContent === 'Submit attempt')!).click();
+      await Promise.resolve();
+    });
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    expect(mockedFetch).toHaveBeenCalledWith(`/api/module-attempts/${id}/submit`, expect.objectContaining({
+      method: 'POST', body: JSON.stringify({ answers: [{ position: 1, selectedIndex: 0 }] }),
+    }));
+    expect(sessionStorage.getItem(`faculty-answers:${id}`)).toBeNull();
   });
 
-  it('requests server finalization when the displayed deadline is reached', async () => {
+  it('automatically submits the final sheet at the displayed deadline', async () => {
     const mockedFetch = vi.mocked(fetch);
-    mockedFetch.mockResolvedValue({ ok: true, status: 200, json: async () => ({
-      status: 'expired', id, title: 'Timed mock', attemptNumber: 1,
-      submittedAt: '2026-09-18T08:10:00.000Z', score: 0, maxPoints: 4,
+    mockedFetch.mockResolvedValue({ ok: true, json: async () => ({
+      status: 'submitted', id, title: 'Timed mock', attemptNumber: 1,
+      submittedAt: active.deadlineAt, score: 0, maxPoints: 4,
       correctCount: 0, wrongCount: 0, unansweredCount: 1, review: null,
     }) } as Response);
     await render({ ...active, serverNow: active.deadlineAt });
-    expect(container.textContent).toContain('Time ended');
-    expect(container.textContent).toContain('0 / 4 points');
-    expect(mockedFetch).toHaveBeenCalledWith(`/api/module-attempts/${id}`, expect.objectContaining({ cache: 'no-store' }));
+    expect(mockedFetch).toHaveBeenCalledWith(`/api/module-attempts/${id}/submit`, expect.objectContaining({
+      body: JSON.stringify({ answers: [] }),
+    }));
   });
 });

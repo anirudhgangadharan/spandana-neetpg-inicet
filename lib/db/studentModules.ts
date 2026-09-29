@@ -47,6 +47,32 @@ interface LandingRow {
   last_attempt_id: string | null;
 }
 
+/** Public metadata only; an unregistered visitor cannot see attempts or answers. */
+export async function getPublicModuleLanding(token: string): Promise<StudentModuleLanding> {
+  const rows = await sql.query(
+    `select fm.status, fm.deleted_at, fm.opens_at, fm.closes_at,
+       clock_timestamp() as server_now, fm.title, fm.description, fm.instructions,
+       fm.duration_seconds, fm.max_attempts, fm.correct_points, fm.wrong_points,
+       fm.blank_points, fm.allow_review,
+       (select count(*)::int from faculty_module_questions q where q.module_id = fm.id) as question_count
+     from faculty_modules fm where fm.share_token = $1::uuid`, [token]
+  ) as LandingRow[];
+  const row = rows[0];
+  if (!row || row.deleted_at !== null || row.status !== 'published') return { state: 'unavailable' };
+  const now = new Date(row.server_now).getTime();
+  if (now < new Date(row.opens_at).getTime()) return { state: 'upcoming', opensAt: new Date(row.opens_at).toISOString() };
+  if (now >= new Date(row.closes_at).getTime()) return { state: 'closed', lastAttemptId: null };
+  return {
+    state: 'open', title: row.title, description: row.description,
+    instructions: row.instructions, questionCount: row.question_count,
+    durationSeconds: row.duration_seconds, maxAttempts: row.max_attempts,
+    attemptsUsed: 0, activeAttemptId: null, lastAttemptId: null,
+    correctPoints: row.correct_points, wrongPoints: row.wrong_points,
+    blankPoints: row.blank_points, allowReview: row.allow_review,
+    opensAt: new Date(row.opens_at).toISOString(), closesAt: new Date(row.closes_at).toISOString(),
+  };
+}
+
 /** Only signed-in students call this. The link token is an unguessable locator,
  * not authorization; role checks happen in the route before this query. */
 export async function getStudentModuleLanding(token: string, studentId: string): Promise<StudentModuleLanding> {

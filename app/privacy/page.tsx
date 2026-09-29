@@ -10,13 +10,20 @@ export default function PrivacyPage(): React.JSX.Element {
     <main id="main" className={styles.page}>
       <article className={`card ${styles.panel}`}>
         <h1>Privacy notice</h1>
-        <p>Last updated 26 September 2026.</p>
+        <p>Last updated 29 September 2026.</p>
         {operator ? <p>This service is operated by {operator}.</p> : null}
         <p>
           MedMCQA Practice stores your account identity, ordinary practice progress and bookmarks, and—when
           you take a faculty assessment—your answers, server-observed timing events, score, and attempt status.
           Faculty can view results only for modules they own. Super administrators cannot inspect faculty
           questions, answers, participant responses, or detailed analytics.
+        </p>
+        <p>
+          A student opening a faculty test link can participate without an account. Before starting, the student
+          provides a name, registration number, and roll number. These self-reported details identify the result
+          to the owning faculty member; they do not verify identity. Answer choices stay in the browser until
+          final submission. A closed browser or failed connection before submission may lose those choices.
+          Submitted answers, scores, attempt status, and the three identity fields are stored on the server.
         </p>
         <h2>Why data is used</h2>
         <ul>
@@ -32,6 +39,13 @@ export default function PrivacyPage(): React.JSX.Element {
           grants. If you own faculty modules, those modules and every participant record under them are also
           deleted. The operation cannot be undone. Infrastructure-provider backups and security logs may persist
           for their provider-defined retention periods; those periods must be confirmed before launch.
+        </p>
+        <p>
+          Guest test records remain until the owning faculty member erases the participant, the owning faculty
+          account is deleted, or the operator processes a deletion request. Removing a published module from the faculty dashboard does not erase its
+          assessment history. Guests can request deletion through the privacy contact below, identifying the
+          faculty test and their registration and roll numbers. The operator must verify the request with the
+          faculty member before deleting the record. Guest access cookies expire after 30 days.
         </p>
         <p><Link href="/delete-account">How to delete your account</Link></p>
         <h2>Security and contact</h2>

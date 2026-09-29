@@ -7,6 +7,7 @@ import { Badge, Button } from '@/components/ui/primitives';
 import type { Facets } from '@/lib/db/queries';
 import type { FacultyCandidate } from '@/lib/db/facultyQuestions';
 import type { FacultyModuleDetail } from '@/lib/db/facultyModules';
+import { QuestionCorrectionEditor } from './QuestionCorrectionEditor';
 import styles from '../modules.module.css';
 
 interface DraftForm {
@@ -100,6 +101,7 @@ export function ModuleBuilder({ initialModule, facets }: {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [correctionId, setCorrectionId] = useState<string | null>(null);
   const [acceptReuse, setAcceptReuse] = useState(false);
 
   const isDraft = detail.status === 'draft';
@@ -335,9 +337,12 @@ export function ModuleBuilder({ initialModule, facets }: {
                     <Button disabled={busy !== null || index === 0} aria-label={`Move question ${index + 1} up`} onClick={() => { const ids = detail.selectedQuestions.map((entry) => entry.id); [ids[index - 1], ids[index]] = [ids[index]!, ids[index - 1]!]; void saveQuestions(ids, detail.selectedQuestions.some((entry) => entry.usedElsewhere)); }}>↑</Button>
                     <Button disabled={busy !== null || index === detail.selectedQuestions.length - 1} aria-label={`Move question ${index + 1} down`} onClick={() => { const ids = detail.selectedQuestions.map((entry) => entry.id); [ids[index], ids[index + 1]] = [ids[index + 1]!, ids[index]!]; void saveQuestions(ids, detail.selectedQuestions.some((entry) => entry.usedElsewhere)); }}>↓</Button>
                     <Button disabled={busy !== null} onClick={() => setPreviewId(previewId === question.id ? null : question.id)} aria-expanded={previewId === question.id}>{previewId === question.id ? 'Hide preview' : 'Preview'}</Button>
+                    <Button disabled={busy !== null} onClick={() => setCorrectionId(correctionId === question.id ? null : question.id)} aria-expanded={correctionId === question.id}>{correctionId === question.id ? 'Close editor' : 'Correct question'}</Button>
                     <Button disabled={busy !== null} variant="ghost" onClick={() => void saveQuestions(detail.selectedQuestions.filter((entry) => entry.id !== question.id).map((entry) => entry.id), detail.selectedQuestions.some((entry) => entry.id !== question.id && entry.usedElsewhere))}>Remove</Button>
                   </div>
                   {previewId === question.id ? <ol type="A" className={styles.options}>{question.options.map((option, optionIndex) => <li key={optionIndex}>{option}</li>)}</ol> : null}
+                  {correctionId === question.id ? <QuestionCorrectionEditor moduleId={detail.id} revision={detail.revision} question={question}
+                    onSaved={(updated) => { setDetail(updated); setCorrectionId(null); setNotice('Correction saved to the question pool and current draft.'); }} /> : null}
                 </li>
               ))}
             </ol>
@@ -353,7 +358,7 @@ export function ModuleBuilder({ initialModule, facets }: {
           <div className={styles.buttonRow}><Button variant="primary" disabled={busy !== null || !canPublish} onClick={() => void act('publish')}>{busy === 'publish' ? 'Publishing…' : 'Publish module'}</Button>{!canPublish ? <span className={styles.muted}>Save a valid time window and select at least one question first.</span> : null}</div>
         </> : <>
           <div className={styles.shareRow}><code>/modules/{detail.shareToken}</code><Button onClick={() => void copyLink()}>Copy share link</Button></div>
-          <p className={styles.muted}>Any signed-in student with this link can open the module while it is published and within its availability window. Existing attempts keep their original deadline if you unpublish.</p>
+          <p className={styles.muted}>Students can open this link without Google sign-in. They enter name, registration number, and roll number before starting. Existing attempts keep their original deadline if you unpublish.</p>
           <div className={styles.buttonRow}>
             {detail.status === 'published' ? <Button disabled={busy !== null} onClick={() => void act('unpublish')}>Unpublish</Button> : null}
             {detail.status === 'unpublished' ? <Button disabled={busy !== null} variant="primary" onClick={() => void act('republish')}>Republish</Button> : null}

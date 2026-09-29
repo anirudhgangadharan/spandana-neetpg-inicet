@@ -170,3 +170,19 @@ export function moduleSnapshotFromQuestion(question: Question): {
     flags: question.flags,
   };
 }
+
+/** Construct a frozen, versioned correction without mutating the source row. */
+export function correctedQuestion(question: Question, correction: {
+  readonly stem: string;
+  readonly options: readonly [string, string, string, string];
+  readonly answer: AnswerIndex;
+  readonly explanation: string | null;
+}): Question {
+  return createQuestion({
+    id: question.id, source: question.source, split: question.split,
+    stem: correction.stem, options: correction.options, answer: correction.answer,
+    explanation: correction.explanation, subject: question.subject, topic: question.topic,
+    choiceType: question.choiceType, flags: question.flags,
+    duplicateOf: question.duplicateOf, sessionEligible: question.sessionEligible,
+  });
+}

@@ -2,6 +2,7 @@ import type { PoolClient } from '@neondatabase/serverless';
 import { moduleSnapshotFromQuestion } from '@/lib/core/question';
 import { getManifest } from './client';
 import { getQuestionsByIds } from './queries';
+import { effectiveQuestions } from './questionCorrections';
 import type { DraftSettings, parseAction, parseSelection } from '@/lib/faculty/moduleInput';
 import { sql } from './userClient';
 import { withUserTransaction } from './transactionClient';
@@ -54,7 +55,8 @@ async function insertQuestionSnapshots(
   ids: readonly string[]
 ): Promise<void> {
   if (ids.length === 0) return;
-  const questions = getQuestionsByIds(ids);
+  const resolved = await effectiveQuestions(getQuestionsByIds(ids), client);
+  const questions = resolved.questions;
   if (questions.length !== ids.length || questions.some((question, index) => question.id !== ids[index] || !question.sessionEligible)) {
     throw new FacultyModuleError('A selected question is missing or unsuitable for an exam. Remove it and try again.', 409);
   }
@@ -71,17 +73,20 @@ async function insertQuestionSnapshots(
       subject: snapshot.subject,
       topic: snapshot.topic,
       flags: snapshot.flags,
+      correction_version: resolved.versions.get(snapshot.id) ?? null,
     };
   });
   await client.query(
     `insert into faculty_module_questions
        (module_id, position, question_id, source, stem, options, answer_index,
-        explanation, subject, topic, flags)
+        explanation, subject, topic, flags, correction_version)
      select $1::uuid, item.position, item.question_id, item.source, item.stem,
-       item.options, item.answer_index, item.explanation, item.subject, item.topic, item.flags
+       item.options, item.answer_index, item.explanation, item.subject, item.topic, item.flags,
+       item.correction_version
      from jsonb_to_recordset($2::jsonb) as item(
        position smallint, question_id text, source text, stem text, options jsonb,
-       answer_index smallint, explanation text, subject text, topic text, flags jsonb)`,
+       answer_index smallint, explanation text, subject text, topic text, flags jsonb,
+       correction_version integer)`,
     [moduleId, JSON.stringify(snapshots)]
   );
 }

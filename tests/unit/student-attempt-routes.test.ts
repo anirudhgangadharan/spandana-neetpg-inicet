@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  role: vi.fn(), landing: vi.fn(), start: vi.fn(), attempt: vi.fn(), save: vi.fn(), activity: vi.fn(), submit: vi.fn(),
+  role: vi.fn(), guest: vi.fn(), landing: vi.fn(), publicLanding: vi.fn(), start: vi.fn(), attempt: vi.fn(), save: vi.fn(), activity: vi.fn(), submit: vi.fn(),
 }));
 vi.mock('@/lib/auth/roles', () => ({ requireRole: mocks.role }));
-vi.mock('@/lib/db/studentModules', () => ({ getStudentModuleLanding: mocks.landing }));
+vi.mock('@/lib/db/guestStudents', () => ({ getGuestStudentId: mocks.guest }));
+vi.mock('@/lib/db/studentModules', () => ({ getStudentModuleLanding: mocks.landing, getPublicModuleLanding: mocks.publicLanding }));
 vi.mock('@/lib/db/moduleAttempts', () => ({
   StudentAttemptError: class extends Error {},
   startStudentAttempt: mocks.start, getStudentAttempt: mocks.attempt,
@@ -26,12 +27,15 @@ const attemptContext = { params: Promise.resolve({ id: attemptId }) };
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.role.mockResolvedValue({ role: 'student', userId: 'student-1' });
+  mocks.guest.mockResolvedValue('student-1');
 });
 
 describe('student module route boundaries', () => {
-  it('does not query link or attempt data for a faculty or super-admin account', async () => {
+  it('shows public link metadata but not another account’s attempt data', async () => {
     mocks.role.mockResolvedValue(null);
-    expect((await moduleGet(new Request(`https://example.org/api/modules/${token}`), tokenContext)).status).toBe(404);
+    mocks.guest.mockResolvedValue(null);
+    mocks.publicLanding.mockResolvedValue({ state: 'closed', lastAttemptId: null });
+    expect((await moduleGet(new Request(`https://example.org/api/modules/${token}`), tokenContext)).status).toBe(200);
     expect((await attemptGet(new Request(`https://example.org/api/module-attempts/${attemptId}`), attemptContext)).status).toBe(404);
     expect(mocks.landing).not.toHaveBeenCalled();
     expect(mocks.attempt).not.toHaveBeenCalled();
@@ -45,7 +49,7 @@ describe('student module route boundaries', () => {
     expect(mocks.landing).not.toHaveBeenCalled();
   });
 
-  it('passes only the authenticated student identity to the module and attempt lookup', async () => {
+  it('passes only the guest participant identity to the module and attempt lookup', async () => {
     mocks.landing.mockResolvedValue({ state: 'closed' });
     mocks.attempt.mockResolvedValue({ status: 'submitted', score: 4, review: null });
     const landing = await moduleGet(new Request(`https://example.org/api/modules/${token}`), tokenContext);
@@ -113,6 +117,6 @@ describe('student module route boundaries', () => {
       method: 'POST', headers: { origin: 'https://example.org' },
     }), attemptContext);
     expect(submit.status).toBe(200);
-    expect(mocks.submit).toHaveBeenCalledWith(attemptId, 'student-1');
+    expect(mocks.submit).toHaveBeenCalledWith(attemptId, 'student-1', undefined);
   });
 });

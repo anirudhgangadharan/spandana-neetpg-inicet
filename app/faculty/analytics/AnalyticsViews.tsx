@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/primitives';
 import type { AnalyticsBreakdown, DistributionBucket, FacultyOverview, ModuleAnalytics } from '@/lib/db/facultyAnalytics';
 import { ANALYTICS_SMALL_SAMPLE } from '@/lib/db/facultyAnalytics';
+import { RecoveryButton } from './RecoveryButton';
 import styles from './analytics.module.css';
 
 function value(value: number | null, suffix = ''): string {
@@ -57,8 +58,8 @@ export function ModuleAnalyticsView({ analytics }: { analytics: ModuleAnalytics 
     <div className={styles.twoColumn}>
       <section className={`card ${styles.panel}`} aria-labelledby="score-heading"><h2 id="score-heading">Scores</h2>
         <div className={styles.metricGrid}><Metric label="Mean">{value(analytics.scores.mean)}</Metric><Metric label="Median">{value(analytics.scores.median)}</Metric><Metric label="Highest">{value(analytics.scores.highest)}</Metric><Metric label="Lowest">{value(analytics.scores.lowest)}</Metric></div>
-        {analytics.scores.highestParticipant ? <p>Highest: {analytics.scores.highestParticipant.name ?? analytics.scores.highestParticipant.email} <span className={styles.muted}>({analytics.scores.highestParticipant.email})</span></p> : null}
-        {analytics.scores.lowestParticipant ? <p>Lowest: {analytics.scores.lowestParticipant.name ?? analytics.scores.lowestParticipant.email} <span className={styles.muted}>({analytics.scores.lowestParticipant.email})</span></p> : null}
+        {analytics.scores.highestParticipant ? <p>Highest: {analytics.scores.highestParticipant.name ?? analytics.scores.highestParticipant.email} {analytics.scores.highestParticipant.email ? <span className={styles.muted}>({analytics.scores.highestParticipant.email})</span> : null}</p> : null}
+        {analytics.scores.lowestParticipant ? <p>Lowest: {analytics.scores.lowestParticipant.name ?? analytics.scores.lowestParticipant.email} {analytics.scores.lowestParticipant.email ? <span className={styles.muted}>({analytics.scores.lowestParticipant.email})</span> : null}</p> : null}
         <h3>Distribution</h3><Distribution values={analytics.scores.distribution} empty="No final scores yet." />
       </section>
       <section className={`card ${styles.panel}`} aria-labelledby="time-heading"><h2 id="time-heading">Completion time</h2>
@@ -76,9 +77,9 @@ export function ModuleAnalyticsView({ analytics }: { analytics: ModuleAnalytics 
         <td className={styles.numeric}>{question.estimatedTimeMs === null ? 'No sample' : duration(question.estimatedTimeMs / 1000)} <span className={styles.muted}>(n={question.timingSamples})</span></td></tr>)}</tbody>
     </table></div><p className={styles.muted}>Active time is a bounded server-observed estimate. Background tabs, refreshes, and the final segment after expiry may be undercounted; it is not proctoring telemetry.</p></section>
     <section className={`card ${styles.panel}`} aria-labelledby="students-heading"><h2 id="students-heading">Student attempts</h2>
-      <form className={styles.search} action={queryPrefix} method="get"><label htmlFor="student-search">Search by name or email<input id="student-search" name="q" defaultValue={analytics.participants.search} maxLength={120} /></label><Button type="submit">Search</Button></form>
+      <form className={styles.search} action={queryPrefix} method="get"><label htmlFor="student-search">Search by name, registration number, roll number, or email<input id="student-search" name="q" defaultValue={analytics.participants.search} maxLength={120} /></label><Button type="submit">Search</Button></form>
       <div className={styles.tableWrap} role="region" aria-label="Student attempts" tabIndex={0}><table className={styles.table}><caption>Attempts, newest first</caption><thead><tr><th scope="col">Student</th><th scope="col">Attempt</th><th scope="col">Status</th><th scope="col">Score</th><th scope="col">Correct / wrong / blank</th><th scope="col">Elapsed</th></tr></thead><tbody>
-        {analytics.participants.items.length === 0 ? <tr><td colSpan={6}>No matching attempts.</td></tr> : analytics.participants.items.map((attempt) => <tr key={attempt.attemptId}><th scope="row">{attempt.studentName ?? 'Unnamed student'}<br/><span className={styles.muted}>{attempt.studentEmail}</span></th><td>{attempt.attemptNumber}</td><td>{attempt.status}</td><td>{value(attempt.score)}</td><td>{attempt.correctCount ?? '—'} / {attempt.wrongCount ?? '—'} / {attempt.unansweredCount ?? '—'}</td><td>{duration(attempt.elapsedSeconds)}</td></tr>)}
+        {analytics.participants.items.length === 0 ? <tr><td colSpan={6}>No matching attempts.</td></tr> : analytics.participants.items.map((attempt) => <tr key={attempt.attemptId}><th scope="row">{attempt.studentName ?? 'Unnamed student'}<br/><span className={styles.muted}>{attempt.registrationNumber !== null ? `Registration: ${attempt.registrationNumber} · Roll: ${attempt.rollNumber}` : attempt.studentEmail}</span>{attempt.guestParticipantId ? <RecoveryButton moduleId={analytics.module.id} participantId={attempt.guestParticipantId} /> : null}</th><td>{attempt.attemptNumber}</td><td>{attempt.status === 'expired' ? 'Expired / unsubmitted' : attempt.status}</td><td>{value(attempt.score)}</td><td>{attempt.correctCount ?? '—'} / {attempt.wrongCount ?? '—'} / {attempt.unansweredCount ?? '—'}</td><td>{duration(attempt.elapsedSeconds)}</td></tr>)}
       </tbody></table></div>
       <nav className={styles.pager} aria-label="Student attempt pages">{analytics.participants.page > 1 ? <Link href={`${queryPrefix}?page=${analytics.participants.page - 1}&q=${encodeURIComponent(analytics.participants.search)}`}>← Previous</Link> : null}<span>Page {analytics.participants.page}</span>{analytics.participants.hasNext ? <Link href={`${queryPrefix}?page=${analytics.participants.page + 1}&q=${encodeURIComponent(analytics.participants.search)}`}>Next →</Link> : null}</nav>
     </section>

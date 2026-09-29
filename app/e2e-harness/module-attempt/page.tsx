@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { AttemptClient } from '@/app/module-attempts/[id]/AttemptClient';
+import { FinalAttemptClient } from '@/app/module-attempts/[id]/FinalAttemptClient';
 import type { StudentAttemptView } from '@/lib/db/moduleAttempts';
 import styles from '@/app/module-exam.module.css';
 
@@ -22,6 +22,6 @@ export default async function ModuleAttemptHarness({ searchParams }: {
     }],
   };
   return <main id="main" className={styles.page}>
-    <AttemptClient initialView={initialView} studentId="e2e-student" />
+    <FinalAttemptClient initialView={initialView} />
   </main>;
 }

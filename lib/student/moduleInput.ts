@@ -9,6 +9,26 @@ export class StudentModuleInputError extends Error {
 
 export const moduleUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export function parseFinalAnswers(body: unknown): readonly { position: number; selectedIndex: 0 | 1 | 2 | 3 }[] {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new StudentModuleInputError('Invalid submission.');
+  const value = body as Record<string, unknown>;
+  if (Object.keys(value).some((key) => key !== 'answers') || !Array.isArray(value['answers']) || value['answers'].length > 200) {
+    throw new StudentModuleInputError('Invalid answer sheet.');
+  }
+  const seen = new Set<number>();
+  return value['answers'].map((item: unknown) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw new StudentModuleInputError('Invalid answer.');
+    const answer = item as Record<string, unknown>;
+    if (Object.keys(answer).some((key) => key !== 'position' && key !== 'selectedIndex') ||
+      !Number.isInteger(answer['position']) || (answer['position'] as number) < 1 ||
+      (answer['position'] as number) > 200 || !isAnswerIndex(answer['selectedIndex']) ||
+      seen.has(answer['position'] as number)) throw new StudentModuleInputError('Invalid or duplicate answer.');
+    const position = answer['position'] as number;
+    seen.add(position);
+    return { position, selectedIndex: answer['selectedIndex'] as 0 | 1 | 2 | 3 };
+  });
+}
+
 export function parseResponseSave(body: unknown): {
   readonly position: number;
   readonly selectedIndex: 0 | 1 | 2 | 3 | null;
