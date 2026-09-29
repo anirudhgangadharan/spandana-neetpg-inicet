@@ -1,6 +1,6 @@
 # PRD: Guest test entry and faculty question corrections
 
-**Status:** Implemented; migration 005 applied to production on 30 September 2026; hosted deployment validation and operator privacy decisions remain
+**Status:** Deployed to the existing web production service on 30 September 2026; hosted capacity validation and operator privacy decisions remain
 **Product:** Existing Next.js NEET MCQ web app and faculty modules
 **Goal:** Let students take a shared faculty test without Google sign-in, and let faculty correct question content and answer keys while building tests.
 

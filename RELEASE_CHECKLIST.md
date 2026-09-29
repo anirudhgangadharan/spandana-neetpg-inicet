@@ -1,6 +1,13 @@
 # Release checklist
 
-The guest-entry and correction implementation has local verification. On 30 September 2026, the user directed a production deployment without staging. Migration 005 was applied to the verified Neon `production` branch; the application deploy and live checks must still be verified independently.
+The guest-entry and correction implementation has local verification. On 30 September 2026, the user directed a production deployment without staging. Migration 005 was applied to the verified Neon `production` branch, and commit `cbcba34` deployed successfully on Render.
+
+## Production rollout evidence
+
+- [x] Production migration ledger contains 005; all four new tables exist.
+- [x] Render reports commit `cbcba34` live. `/api/health` returns 200 with migration 005, corpus integrity, database, and configuration ready.
+- [x] An existing open shared test link renders the guest identity fields without Google sign-in. Public metadata returns 200; empty identity returns 400; starting without a guest session returns 401. This smoke test left participant counts unchanged.
+- [ ] A production guest submission and faculty correction were not performed against a real module, to avoid altering faculty results and the global question pool. Local browser and disposable-Postgres tests cover these flows.
 
 ## Verified in this worktree
 
@@ -15,6 +22,8 @@ The guest-entry and correction implementation has local verification. On 30 Sept
 - [ ] Hosted-Postgres concurrency/capacity validation: not run; no 200-student claim is made.
 
 ## Required before a production deployment
+
+The staging and backup rehearsal items below were skipped under the user's direct-production instruction. They remain recorded as release risks, not completed checks.
 
 - [ ] Review and commit the complete diff; protect the release branch and require CI.
 - [x] Record the upstream dataset licences and required attribution: MedMCQA Apache-2.0; MedQA repository MIT. Retain both notices in the distributed app/image.
