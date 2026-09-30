@@ -7,6 +7,14 @@ import styles from '@/app/module-exam.module.css';
 
 type Choice = 0 | 1 | 2 | 3 | null;
 
+const KEEPALIVE_INTERVAL_MS = 4 * 60_000;
+
+function firstKeepaliveDelay(attemptId: string): number {
+  let hash = 0;
+  for (const character of attemptId) hash = (Math.imul(hash, 31) + character.charCodeAt(0)) >>> 0;
+  return 60_000 + hash % (3 * 60_000);
+}
+
 export function FinalAttemptClient({ initialView }: { readonly initialView: StudentAttemptView }): React.JSX.Element {
   const [view, setView] = useState(initialView);
   const [position, setPosition] = useState(1);
@@ -17,6 +25,7 @@ export function FinalAttemptClient({ initialView }: { readonly initialView: Stud
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [storageFailed, setStorageFailed] = useState(false);
+  const [connectionFailed, setConnectionFailed] = useState(false);
   const inFlight = useRef(false);
   const automaticSent = useRef(false);
   const key = `faculty-answers:${initialView.id}`;
@@ -55,6 +64,30 @@ export function FinalAttemptClient({ initialView }: { readonly initialView: Stud
     const interval = window.setInterval(tick, 500);
     return () => window.clearInterval(interval);
   }, [view]);
+
+  useEffect(() => {
+    if (view.status !== 'active') return;
+    let stopped = false;
+    let interval: number | undefined;
+    const ping = async () => {
+      try {
+        const response = await fetch('/api/ping', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Keepalive failed');
+        if (!stopped) setConnectionFailed(false);
+      } catch {
+        if (!stopped) setConnectionFailed(true);
+      }
+    };
+    const timeout = window.setTimeout(() => {
+      void ping();
+      interval = window.setInterval(() => void ping(), KEEPALIVE_INTERVAL_MS);
+    }, firstKeepaliveDelay(view.id));
+    return () => {
+      stopped = true;
+      window.clearTimeout(timeout);
+      if (interval !== undefined) window.clearInterval(interval);
+    };
+  }, [view.id, view.status]);
 
   function select(answer: Choice): void {
     if (view.status !== 'active' || remainingMs <= 0 || inFlight.current) return;
@@ -133,6 +166,7 @@ export function FinalAttemptClient({ initialView }: { readonly initialView: Stud
     </header>
     <p className={styles.notice}>Answers stay only in this browser until submission. A browser or connection failure may lose them. Time expiry triggers automatic submission.</p>
     {storageFailed ? <p role="alert" className={styles.error}>This browser cannot restore answers after refresh. Keep this page open until submission.</p> : null}
+    {connectionFailed ? <p role="alert" className={styles.error}>Connection unavailable. Answers are still only in this browser and may not reach the server at the deadline. Restore your connection and submit before time runs out.</p> : null}
     {error ? <p role="alert" className={styles.error}>{error}</p> : null}
     <p role="status" className={styles.saveStatus}>Answers not yet saved to the server.</p>
     <div className={styles.examGrid}><section className={`card ${styles.panel}`} aria-labelledby="question-heading">

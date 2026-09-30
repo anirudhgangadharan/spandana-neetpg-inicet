@@ -30,6 +30,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   sessionStorage.clear();
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
@@ -40,6 +41,18 @@ async function render(view = active): Promise<void> {
 }
 
 describe('final-only student attempt', () => {
+  it('keeps the service awake during a long exam without sending answers or activity', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'setInterval', 'clearTimeout', 'clearInterval'] });
+    const mockedFetch = vi.mocked(fetch);
+    mockedFetch.mockResolvedValue({ ok: true, status: 204 } as Response);
+    await render();
+    await act(async () => (container.querySelector('input[type="radio"]') as HTMLInputElement).click());
+    await act(async () => { await vi.advanceTimersByTimeAsync(4 * 60_000); });
+    expect(mockedFetch).toHaveBeenCalledWith('/api/ping', { cache: 'no-store' });
+    expect(mockedFetch.mock.calls.every(([url, options]) => url === '/api/ping' && options?.method === undefined)).toBe(true);
+    expect(sessionStorage.getItem(`faculty-answers:${id}`)).toContain('"1":0');
+  });
+
   it('keeps an answer locally across refresh without an answer API write, then submits the full sheet once', async () => {
     const mockedFetch = vi.mocked(fetch);
     await render();

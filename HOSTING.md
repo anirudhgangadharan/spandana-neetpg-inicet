@@ -50,6 +50,8 @@ The fixed-window rate limiter is in application memory. It is acceptable only as
 
 No capacity claim for 200 concurrent students is made. Establish it on a staging deployment using realistic 1–200-question modules, registration/start bursts, synchronized final submission, expiry races, and analytics traffic while observing p95/p99 latency, error/timeout rate, pool/database saturation, and record-count correctness. Final-only answers reduce routine writes but concentrate writes at submission.
 
+On Render Free, an idle web service sleeps after 15 minutes and can take about a minute to restart. An active exam sends a small, staggered read-only `/api/ping` request every four minutes to keep the service awake; answer choices still reach the server only on final submission. Browser suspension, network loss, Render restarts, or exhausted free-plan limits can still prevent an on-time receipt within the 10-second grace. Use an always-on plan for consequential exams and verify synchronized deadline submissions on the intended capacity before setting class limits.
+
 ## Corpus and container paths
 
 `Dockerfile` requires `pnpm data:build` first because `data/build/` is git-ignored. `Dockerfile.fetch` requires an HTTPS corpus base URL containing `corpus.sqlite`, `manifest.json`, and `facets.json`; it rejects a non-SQLite or implausibly small download. Runtime checksum verification still decides whether questions may be served.

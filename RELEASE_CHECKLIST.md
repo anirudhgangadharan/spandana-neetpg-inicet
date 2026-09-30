@@ -20,6 +20,7 @@ The guest-entry and correction implementation has local verification. On 30 Sept
 - [x] `git diff --check` passes on the current diff. Re-run before committing.
 - [ ] Production container build/smoke test: blocked because Docker Desktop's Linux engine pipe is unavailable on this machine.
 - [ ] Hosted-Postgres concurrency/capacity validation: not run; no 200-student claim is made.
+- [x] Identified the Render Free idle shutdown risk for 19-minute exams and added a staggered read-only exam keepalive. It does not guarantee receipt during network loss or platform restarts.
 
 ## Required before a production deployment
 
