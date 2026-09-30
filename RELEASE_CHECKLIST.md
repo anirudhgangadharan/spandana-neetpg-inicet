@@ -1,13 +1,16 @@
 # Release checklist
 
-The guest-entry and correction implementation has local verification. On 30 September 2026, the user directed a production deployment without staging. Migration 005 was applied to the verified Neon `production` branch, and commit `cbcba34` deployed successfully on Render.
+The guest-entry and correction implementation has local verification. On 30 September 2026, the user directed a production deployment without staging. Migration 005 was applied to the verified Neon `production` branch, and commit `cbcba34` deployed successfully on Render. Commit `dfc4a4c` added a keepalive for Render Free cold starts on 1 October.
 
 ## Production rollout evidence
 
 - [x] Production migration ledger contains 005; all four new tables exist.
 - [x] Render reports commit `cbcba34` live. `/api/health` returns 200 with migration 005, corpus integrity, database, and configuration ready.
 - [x] An existing open shared test link renders the guest identity fields without Google sign-in. Public metadata returns 200; empty identity returns 400; starting without a guest session returns 401. This smoke test left participant counts unchanged.
-- [ ] A production guest submission and faculty correction were not performed against a real module, to avoid altering faculty results and the global question pool. Local browser and disposable-Postgres tests cover these flows.
+- [x] A production guest opened the published link without Google sign-in, entered all three identifiers, started the 12-question test, selected an answer, refreshed and recovered it, then submitted in the browser. Neon showed zero saved responses before submission and afterward one saved response, score -1, and the matching identity in the faculty module tables.
+- [x] A second synthetic guest completed the production API flow. Final submission returned `submitted`, and an identical retry returned 200 without a duplicate response.
+- [ ] Three clearly labeled synthetic guest records remain in production (two submitted, one registered without an attempt). Automatic approval review rejected permanent deletion; obtain explicit cleanup approval before removing them.
+- [ ] A production faculty correction was not performed against a real question, to avoid changing the global served pool. Local browser and disposable-Postgres tests cover correction and rollback.
 
 ## Verified in this worktree
 

@@ -1,6 +1,6 @@
 # Hosting and operations
 
-The guest-entry and correction release is live on the existing single-instance Render service. On 30 September 2026, migration 005 was applied transactionally to the verified Neon `production` branch, then commit `cbcba34` deployed successfully. Staging was skipped at the user's direction. The live health endpoint confirmed the required migration, corpus integrity, database, and configuration.
+The guest-entry and correction release is live on the existing single-instance Render service. On 30 September 2026, migration 005 was applied transactionally to the verified Neon `production` branch, then commit `cbcba34` deployed successfully. On 1 October, commit `dfc4a4c` added an active-exam keepalive. Staging was skipped at the user's direction. The live health endpoint confirmed the required migration, corpus integrity, database, and configuration; a production guest completed and submitted a test.
 
 ## Runtime architecture
 
