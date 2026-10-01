@@ -99,6 +99,17 @@ export default auth((request) => {
     return NextResponse.next();
   }
 
+  const isSharedAnalytics = pathname.startsWith('/shared/module-analytics/') || pathname.startsWith('/api/shared/module-analytics/');
+  if (isSharedAnalytics) {
+    const result = rateLimit(`ip:${clientKey(request)}:shared-analytics`, 60, Date.now());
+    const headers = { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Robots-Tag': 'noindex, nofollow' };
+    if (!result.allowed) return NextResponse.json({ message: 'Too many requests. Try again shortly.' },
+      { status: 429, headers: { ...headers, 'Retry-After': String(result.retryAfter) } });
+    const response = NextResponse.next();
+    for (const [key, value] of Object.entries(headers)) response.headers.set(key, value);
+    return response;
+  }
+
   if (pathname.startsWith('/api/')) {
     const isSearch = pathname.startsWith('/api/search') || pathname.startsWith('/api/faculty/questions');
     const isFacultyAccess = pathname.startsWith('/api/super-admin/faculty');

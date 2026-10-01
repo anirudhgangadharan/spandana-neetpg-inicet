@@ -113,6 +113,7 @@ The authenticated application has three isolated roles:
 
 - students practise normally and take shared-link timed modules;
 - each faculty account drafts, publishes, archives, and analyzes only its own modules;
+- the creator may enable a separate read-only analytics link, allowing anyone with it to view that module's analytics and identifiable student results without sign-in; links can be replaced or disabled (see [`ANALYTICS_SHARING.md`](ANALYTICS_SHARING.md));
 - the super admin manages up to three faculty email grants but has no question, response, or detailed-analytics bypass.
 
 Published modules freeze question content, order, marking, attempt policy, and review policy in Postgres. Shared links accept guest students after they enter a name, registration number, and roll number; Google sign-in is not required for those tests. Answers remain in browser session storage until one final submission, while the server enforces deadlines and attempt limits. Faculty can correct a question in a draft; audited overrides become the effective question pool for future practice and modules while the source corpus and existing published snapshots remain unchanged. Faculty selection defaults to globally unused questions while revealing no other professor's module identity.

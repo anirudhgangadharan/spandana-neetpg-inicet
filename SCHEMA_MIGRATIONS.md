@@ -10,6 +10,7 @@ The immutable question corpus remains SQLite. All accounts, permissions, guest s
 4. `003_student_attempts.sql` adds the due-attempt index and a trigger preventing writes after finalization/deadline.
 5. `004_faculty_analytics.sql` adds bounded server-observed question timing and analytics indexes.
 6. `005_guest_participants_corrections.sql` adds guest identities/sessions/recovery, audited question overrides, frozen correction provenance, and the ten-second final-receipt grace.
+7. `006_module_analytics_shares.sql` adds module-scoped hashed analytics bearer links; sharing is disabled until explicitly enabled by the owner.
 
 Applied versioned migrations are recorded by filename and SHA-256 in `faculty_schema_migrations`. A changed already-applied file is rejected. Ordering is lexical and new files must use the next contiguous three-digit prefix.
 

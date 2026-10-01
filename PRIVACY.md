@@ -19,6 +19,8 @@ This document records the implemented behavior and the facts that still need an 
 
 No advertising SDK, generative-model API, or third-party analytics SDK is present. Production infrastructure providers will still process network, database, build, and operational-log data under their own terms.
 
+Faculty may deliberately enable a read-only analytics bearer link for a module they own. Anyone possessing or receiving that link can view that module's student names, emails where available, registration/roll numbers, scores, attempt results, and descriptive question analytics without an account. Link holders cannot edit assessments or issue recovery codes. Sharing is disabled by default. Only the SHA-256 token hash is stored; replacing or disabling a link stops subsequent requests, but cannot retract previously viewed or copied data. Soft deletion and an inactive creator faculty grant also block shared reads; module/account deletion cascades sharing records. The operator must establish authorization for this identifiable sharing before launch and configure infrastructure logs to redact link paths and participant search queries.
+
 ## Implemented deletion behavior
 
 `DELETE /api/me/account` requires an authenticated session, a same-origin request, a bounded JSON body, and an exact case-insensitive email confirmation. One database transaction:

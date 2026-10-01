@@ -60,6 +60,8 @@ export default async function ReleaseHarness({ searchParams }: {
     }],
   }} facets={facets} /></main>;
   if (view === 'analytics') return <main id="main" className={analyticsStyles.page}><ModuleAnalyticsView analytics={moduleAnalytics} /></main>;
+  if (view === 'shared-analytics') return <main id="main" className={analyticsStyles.page}><ModuleAnalyticsView analytics={moduleAnalytics}
+    shared={{ baseUrl: '/shared/module-analytics/synthetic-link', generatedAt: '2026-10-01T00:00:00Z' }} /></main>;
   if (view === 'overview') return <main id="main" className={analyticsStyles.page}><FacultyOverviewView analytics={overview} /></main>;
   if (view === 'account') return <main id="main" className={accountStyles.page}><AccountDeletionClient email="faculty@example.org" isFaculty /></main>;
   if (view === 'attempt-limit') return <StudentModuleLandingView token={draft.shareToken} landing={{

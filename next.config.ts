@@ -64,6 +64,8 @@ const standaloneOutput = process.env['BUILD_STANDALONE'] === '1' ? { output: 'st
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Bearer links and participant searches must never enter framework request logs.
+  logging: { incomingRequests: false },
   ...standaloneOutput,
 
   /**
@@ -96,6 +98,11 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      ...['/shared/module-analytics/:path*', '/api/shared/module-analytics/:path*'].map((source) => ({ source, headers: [
+        { key: 'Cache-Control', value: 'no-store' },
+        { key: 'Referrer-Policy', value: 'no-referrer' },
+        { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+      ] })),
     ];
   },
 };

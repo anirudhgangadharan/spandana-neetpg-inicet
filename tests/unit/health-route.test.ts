@@ -23,7 +23,14 @@ describe('operational readiness endpoint', () => {
   it('requires corpus integrity, database schema, and runtime secrets', async () => {
     const response = await GET();
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ ready: true, database: { ready: true }, configuration: { ready: true } });
+    await expect(response.json()).resolves.toMatchObject({ ready: true, database: { ready: true, requiredMigration: '006_module_analytics_shares.sql' }, configuration: { ready: true } });
+    expect(mocks.query.mock.calls[1]![0]).toContain('006_module_analytics_shares.sql');
+  });
+
+  it('blocks readiness when the analytics-sharing migration is absent', async () => {
+    mocks.query.mockReset();
+    mocks.query.mockResolvedValueOnce([{ users_present: true, migrations_present: true }]).mockResolvedValueOnce([]);
+    expect((await GET()).status).toBe(503);
   });
 
   it('fails closed without exposing a database exception', async () => {

@@ -15,7 +15,7 @@ let student: string;
 beforeEach(async () => {
   db = new PGlite();
   await db.exec(await readFile(new URL('../../lib/db/userSchema.sql', import.meta.url), 'utf8'));
-  for (const name of ['001_faculty_foundation.sql', '002_faculty_builder.sql', '003_student_attempts.sql', '004_faculty_analytics.sql', '005_guest_participants_corrections.sql']) {
+  for (const name of ['001_faculty_foundation.sql', '002_faculty_builder.sql', '003_student_attempts.sql', '004_faculty_analytics.sql', '005_guest_participants_corrections.sql', '006_module_analytics_shares.sql']) {
     await db.exec(await readFile(new URL(`../../scripts/db/migrations/${name}`, import.meta.url), 'utf8'));
   }
   mocks.transaction.mockImplementation(async (work: (client: { query: typeof db.query }) => Promise<unknown>) => {
@@ -39,6 +39,8 @@ describe('account deletion on disposable PostgreSQL', () => {
       "insert into faculty_modules (owner_user_id, title) values ($1, 'Other') returning id", [otherFaculty]
     );
     await db.query("insert into faculty_grants (email, user_id, status, slot) values ('faculty@example.org', $1, 'active', 1)", [faculty]);
+    await db.query('insert into faculty_module_analytics_shares (module_id, token_hash, created_by_user_id) values ($1, $2, $3)',
+      [owned.rows[0]!.id, 'a'.repeat(64), faculty]);
     await db.query('insert into faculty_module_opens (module_id, student_user_id) values ($1, $2)', [owned.rows[0]!.id, student]);
     await db.query(`insert into faculty_module_attempts
       (module_id, student_user_id, attempt_number, deadline_at) values ($1, $2, 1, now() + interval '10 minutes')`,
@@ -55,6 +57,7 @@ describe('account deletion on disposable PostgreSQL', () => {
     expect((await db.query('select 1 from users where id = $1', [faculty])).rows).toHaveLength(0);
     expect((await db.query('select 1 from faculty_grants where email = $1', ['faculty@example.org'])).rows).toHaveLength(0);
     expect((await db.query('select 1 from faculty_modules where id = $1', [owned.rows[0]!.id])).rows).toHaveLength(0);
+    expect((await db.query('select 1 from faculty_module_analytics_shares')).rows).toHaveLength(0);
     expect((await db.query('select 1 from faculty_module_attempts')).rows).toHaveLength(0);
     expect((await db.query('select 1 from faculty_modules where id = $1', [other.rows[0]!.id])).rows).toHaveLength(1);
     expect((await db.query('select 1 from sessions where user_id = $1', [faculty])).rows).toHaveLength(0);

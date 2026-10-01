@@ -47,6 +47,8 @@ async function main(): Promise<void> {
     if (!evidence || evidence.activity_columns !== 2 || evidence.activity_fk !== 1 || evidence.analytics_indexes !== 2) {
       throw new Error(`Schema smoke check failed: ${JSON.stringify(evidence)}`);
     }
+    const sharing = await db.query(`select 1 from information_schema.tables where table_name = 'faculty_module_analytics_shares'`);
+    if (sharing.rows.length !== 1) throw new Error('Analytics sharing schema missing.');
     console.log(`Migration rehearsal passed: ${migrations.length} ordered migrations, ledger replay verified, analytics schema present.`);
   } finally {
     await db.close();

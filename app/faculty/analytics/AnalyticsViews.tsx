@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/primitives';
 import type { AnalyticsBreakdown, DistributionBucket, FacultyOverview, ModuleAnalytics } from '@/lib/db/facultyAnalytics';
 import { ANALYTICS_SMALL_SAMPLE } from '@/lib/db/facultyAnalytics';
 import { RecoveryButton } from './RecoveryButton';
+import { AnalyticsShareControl } from './AnalyticsShareControl';
 import styles from './analytics.module.css';
 
 function value(value: number | null, suffix = ''): string {
@@ -39,13 +40,14 @@ function BreakdownTable({ caption, rows }: { caption: string; rows: readonly Ana
   </table></div>;
 }
 
-export function ModuleAnalyticsView({ analytics }: { analytics: ModuleAnalytics }): React.JSX.Element {
+export function ModuleAnalyticsView({ analytics, shared }: { analytics: ModuleAnalytics; shared?: { baseUrl: string; generatedAt: string } }): React.JSX.Element {
   const moduleSummary = analytics.module;
-  const queryPrefix = `/faculty/modules/${moduleSummary.id}/analytics`;
+  const queryPrefix = shared?.baseUrl ?? `/faculty/modules/${moduleSummary.id}/analytics`;
   return <>
     <header className={styles.header}>
-      <nav className={styles.headerNav} aria-label="Faculty navigation"><Link href="/faculty/modules">← Modules</Link><Link href="/faculty/analytics">Overall analytics</Link><Link href={`/faculty/modules/${moduleSummary.id}`}>Edit module</Link></nav>
+      {shared ? <p>Shared analytics · Read-only</p> : <nav className={styles.headerNav} aria-label="Faculty navigation"><Link href="/faculty/modules">← Modules</Link><Link href="/faculty/analytics">Overall analytics</Link><Link href={`/faculty/modules/${moduleSummary.id}`}>Edit module</Link></nav>}
       <h1>{moduleSummary.title}: analytics</h1>
+      {shared ? <p>Data generated: <time dateTime={shared.generatedAt}>{shared.generatedAt}</time> · <a href={`${queryPrefix}?page=${analytics.participants.page}&q=${encodeURIComponent(analytics.participants.search)}`}>Refresh analytics</a></p> : <AnalyticsShareControl moduleId={moduleSummary.id} />}
       <p className={styles.muted}>Final score statistics include submitted and server-expired attempts. Active attempts appear only in participation counts.</p>
     </header>
     <section aria-labelledby="participation-heading"><h2 id="participation-heading">Participation</h2><div className={styles.metricGrid}>
@@ -78,8 +80,8 @@ export function ModuleAnalyticsView({ analytics }: { analytics: ModuleAnalytics 
     </table></div><p className={styles.muted}>Active time is a bounded server-observed estimate. Background tabs, refreshes, and the final segment after expiry may be undercounted; it is not proctoring telemetry.</p></section>
     <section className={`card ${styles.panel}`} aria-labelledby="students-heading"><h2 id="students-heading">Student attempts</h2>
       <form className={styles.search} action={queryPrefix} method="get"><label htmlFor="student-search">Search by name, registration number, roll number, or email<input id="student-search" name="q" defaultValue={analytics.participants.search} maxLength={120} /></label><Button type="submit">Search</Button></form>
-      <div className={styles.tableWrap} role="region" aria-label="Student attempts" tabIndex={0}><table className={styles.table}><caption>Attempts, newest first</caption><thead><tr><th scope="col">Student</th><th scope="col">Attempt</th><th scope="col">Status</th><th scope="col">Score</th><th scope="col">Correct / wrong / blank</th><th scope="col">Elapsed</th></tr></thead><tbody>
-        {analytics.participants.items.length === 0 ? <tr><td colSpan={6}>No matching attempts.</td></tr> : analytics.participants.items.map((attempt) => <tr key={attempt.attemptId}><th scope="row">{attempt.studentName ?? 'Unnamed student'}<br/><span className={styles.muted}>{attempt.registrationNumber !== null ? `Registration: ${attempt.registrationNumber} · Roll: ${attempt.rollNumber}` : attempt.studentEmail}</span>{attempt.guestParticipantId ? <RecoveryButton moduleId={analytics.module.id} participantId={attempt.guestParticipantId} /> : null}</th><td>{attempt.attemptNumber}</td><td>{attempt.status === 'expired' ? 'Expired / unsubmitted' : attempt.status}</td><td>{value(attempt.score)}</td><td>{attempt.correctCount ?? '—'} / {attempt.wrongCount ?? '—'} / {attempt.unansweredCount ?? '—'}</td><td>{duration(attempt.elapsedSeconds)}</td></tr>)}
+      <div className={styles.tableWrap} role="region" aria-label="Student attempt results table" tabIndex={0}><table className={styles.table}><caption>Attempts, newest first</caption><thead><tr><th scope="col">Student</th><th scope="col">Attempt</th><th scope="col">Status</th><th scope="col">Score</th><th scope="col">Correct / wrong / blank</th><th scope="col">Elapsed</th></tr></thead><tbody>
+        {analytics.participants.items.length === 0 ? <tr><td colSpan={6}>No matching attempts.</td></tr> : analytics.participants.items.map((attempt) => <tr key={attempt.attemptId}><th scope="row">{attempt.studentName ?? 'Unnamed student'}<br/><span className={styles.muted}>{attempt.registrationNumber !== null ? `Registration: ${attempt.registrationNumber} · Roll: ${attempt.rollNumber}` : attempt.studentEmail}</span>{!shared && attempt.guestParticipantId ? <RecoveryButton moduleId={analytics.module.id} participantId={attempt.guestParticipantId} /> : null}</th><td>{attempt.attemptNumber}</td><td>{attempt.status === 'expired' ? 'Expired / unsubmitted' : attempt.status}</td><td>{value(attempt.score)}</td><td>{attempt.correctCount ?? '—'} / {attempt.wrongCount ?? '—'} / {attempt.unansweredCount ?? '—'}</td><td>{duration(attempt.elapsedSeconds)}</td></tr>)}
       </tbody></table></div>
       <nav className={styles.pager} aria-label="Student attempt pages">{analytics.participants.page > 1 ? <Link href={`${queryPrefix}?page=${analytics.participants.page - 1}&q=${encodeURIComponent(analytics.participants.search)}`}>← Previous</Link> : null}<span>Page {analytics.participants.page}</span>{analytics.participants.hasNext ? <Link href={`${queryPrefix}?page=${analytics.participants.page + 1}&q=${encodeURIComponent(analytics.participants.search)}`}>Next →</Link> : null}</nav>
     </section>

@@ -42,7 +42,7 @@ export function StudentModuleLandingView({ landing, token, registered = true }: 
           <div><dt>Closes</dt><dd><time dateTime={landing.closesAt}>{new Date(landing.closesAt).toUTCString()}</time></dd></div>
         </dl>
         {landing.instructions ? <div className={styles.instructions}><h3>Instructions</h3><p>{landing.instructions}</p></div> : null}
-        <p className={styles.notice}>Your professor can see your identity, submitted answers, and score. Answers remain only in this browser until final submission. Closing the browser or losing connectivity before submission may lose them.</p>
+        <p className={styles.notice}>Your professor can see your identity, submitted answers, and score. They may share a read-only analytics link that lets anyone with the link view your identity and attempt results. Answers remain only in this browser until final submission. Closing the browser or losing connectivity before submission may lose them.</p>
         {!registered ? <GuestRegistration token={token} /> : landing.activeAttemptId ? <Link href={`/module-attempts/${landing.activeAttemptId}`}>Resume current attempt</Link>
           : landing.attemptsUsed < landing.maxAttempts ? <StartModuleButton token={token} />
             : <p>You have used all permitted attempts.</p>}

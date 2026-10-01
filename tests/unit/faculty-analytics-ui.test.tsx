@@ -22,6 +22,17 @@ const analytics: ModuleAnalytics = {
 };
 
 describe('faculty analytics UI', () => {
+  it('shows all analytics in shared mode with scoped navigation and no owner controls', () => {
+    const html = renderToStaticMarkup(<ModuleAnalyticsView analytics={analytics}
+      shared={{ baseUrl: '/shared/module-analytics/test-token', generatedAt: '2026-10-01T00:00:00Z' }} />);
+    expect(html).toContain('Shared analytics');
+    expect(html).toContain('Refresh analytics');
+    expect(html).toContain('test-token?page=1');
+    expect(html).toContain('Small sample: 2 finalized attempts');
+    expect(html).toContain('Clinical question');
+    expect(html).not.toContain('/faculty/');
+    expect(html).not.toContain('Share analytics</button>');
+  });
   it('labels samples and timing limitations and uses accessible data tables', () => {
     const html = renderToStaticMarkup(<ModuleAnalyticsView analytics={analytics} />);
     expect(html).toContain('Small sample: 2 finalized attempts');

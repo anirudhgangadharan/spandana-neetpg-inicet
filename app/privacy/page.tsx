@@ -10,12 +10,12 @@ export default function PrivacyPage(): React.JSX.Element {
     <main id="main" className={styles.page}>
       <article className={`card ${styles.panel}`}>
         <h1>Privacy notice</h1>
-        <p>Last updated 29 September 2026.</p>
+        <p>Last updated 1 October 2026.</p>
         {operator ? <p>This service is operated by {operator}.</p> : null}
         <p>
           MedMCQA Practice stores your account identity, ordinary practice progress and bookmarks, and—when
           you take a faculty assessment—your answers, server-observed timing events, score, and attempt status.
-          Faculty can view results only for modules they own. Super administrators cannot inspect faculty
+          Faculty can view results for modules they own and can share a read-only analytics link. Anyone with that link can view student names, emails where available, registration and roll numbers, scores, and attempt results, and can forward the link. Disabling or replacing the link stops future access but cannot remove copies already made. Super administrators have no special access to faculty
           questions, answers, participant responses, or detailed analytics.
         </p>
         <p>
