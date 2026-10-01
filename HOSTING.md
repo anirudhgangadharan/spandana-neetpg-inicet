@@ -2,6 +2,8 @@
 
 The guest-entry and correction release is live on the existing single-instance Render service. On 30 September 2026, migration 005 was applied transactionally to the verified Neon `production` branch, then commit `cbcba34` deployed successfully. On 1 October, commit `dfc4a4c` added an active-exam keepalive. Staging was skipped at the user's direction. The live health endpoint confirmed the required migration, corpus integrity, database, and configuration; a production guest completed and submitted a test.
 
+On 1 October 2026, the user authorized the analytics-sharing production release. Migration 006 was applied atomically to that same verified production branch; commit `defaaf6` deployed successfully as `dep-dav2281srm7s73bju0h0`. Production readiness and a bounded anonymous synthetic analytics smoke test passed, including search/pagination, headers, replacement, and revocation. All synthetic records were removed. See `ANALYTICS_SHARING.md` for evidence and remaining operational limits.
+
 ## Runtime architecture
 
 - Next.js 15 runs in a non-root standalone Node 22 container.
